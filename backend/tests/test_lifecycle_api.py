@@ -81,3 +81,15 @@ def test_kite_callback_paths_exist(db):
     from app.main import app
     paths = {r.path for r in app.routes}
     assert {"/auth/callback", "/api/auth/callback", "/api/system/callback"} <= paths
+
+
+def test_kite_session_is_valid_for_issue_day_only(monkeypatch):
+    from datetime import date
+    from app.core.settings import Settings
+    from app.market import providers
+    p = providers.KiteProvider(Settings(kite_api_key="x"), access_token="tok")
+    assert p.is_connected()
+    monkeypatch.setattr(providers, "_today_ist", lambda: date(2099, 1, 1))  # next day: token expired
+    assert not p.is_connected()
+    p.set_token(None)
+    assert not p.is_connected()

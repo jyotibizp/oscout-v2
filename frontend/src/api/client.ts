@@ -56,7 +56,7 @@ export interface Setup {
 }
 export interface Feed { feed: string; symbol: string; timeframe: string; status: string; reason: string | null; last_candle: string | null; expected_candle: string; candles: number; last_update: string | null; last_sync: string | null; last_error: string | null; market_open: boolean }
 export interface Health {
-  now: string; market_open: boolean; provider: string; connected: boolean; feeds: Feed[];
+  now: string; market_open: boolean; provider: string; connected: boolean; session_date?: string | null; feeds: Feed[];
   auto_scan: { enabled: boolean; runtime_enabled: boolean; next_run: string; last_run: string | null; last_result: string | null; last_error: string | null };
   last_scan: ScanRun | null;
 }

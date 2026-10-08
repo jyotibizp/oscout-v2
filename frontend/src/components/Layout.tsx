@@ -108,7 +108,15 @@ function Header({ health, reload }: { health: Health | null; reload: () => void 
           <Toggle on={!!health?.auto_scan.runtime_enabled} label="Auto Scan"
             onChange={async (v) => { await api.setAutoScan(v); reload(); }} />
           <Toggle on={autoRefresh} label="Auto Refresh" onChange={setAutoRefresh} />
-          <button className="btn" onClick={connect}>CONNECT</button>
+          {health?.connected ? (
+            <button className="btn border-good/50 text-good hover:text-good" disabled={health.provider !== "kite"}
+              title={health.provider === "kite" ? `Kite session valid for ${health.session_date ?? "today"} — click to reconnect` : "Mock data provider"}
+              onClick={connect}>
+              <span className="h-2 w-2 rounded-full bg-good" />CONNECTED
+            </button>
+          ) : (
+            <button className="btn border-warn/60 text-warn" onClick={connect} title="Log in to Kite to start live data">CONNECT</button>
+          )}
           <button className="btn-primary px-5" onClick={scan} disabled={scanning}>{scanning ? "SCANNING…" : "SCAN NOW"}</button>
         </div>
       </div>
