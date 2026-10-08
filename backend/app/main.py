@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import router
+from app.api.routes import router, system_callback
 from app.core.logging import setup_logging
 from app.core.settings import get_settings
 from app.db.session import Base, get_engine
@@ -28,6 +28,10 @@ app = FastAPI(title="oscout v2 — ADX Signal Generator", version="1.0.0", lifes
 app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in get_settings().cors_origins.split(",")],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.include_router(router)
+
+
+# The Kite Connect app's registered redirect URL is http://127.0.0.1:8000/auth/callback (no /api prefix)
+app.add_api_route("/auth/callback", system_callback, methods=["GET"], include_in_schema=False)
 
 
 @app.get("/health")

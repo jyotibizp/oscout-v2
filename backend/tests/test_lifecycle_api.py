@@ -75,3 +75,9 @@ def test_api_scan_config_and_health(db):
     assert c.get("/api/signals/history").json()["total"] >= 0
     hist = c.get("/api/scans/history?symbol=NIFTY").json()
     assert hist["total"] >= 1 and hist["items"][0]["config_version"] == "1.0.0"
+
+
+def test_kite_callback_paths_exist(db):
+    from app.main import app
+    paths = {r.path for r in app.routes}
+    assert {"/auth/callback", "/api/auth/callback", "/api/system/callback"} <= paths
