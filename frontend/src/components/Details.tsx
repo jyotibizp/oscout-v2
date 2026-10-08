@@ -33,12 +33,12 @@ export function ScanDetailDrawer({ id, onClose }: { id: number | null; onClose: 
           <Pipeline r={r} />
           {(["gate1", "gate2", "atr", "vix"] as const).map((k) => (
             <div key={k}>
-              <div className="text-[11px] uppercase tracking-wider text-ink-faint mb-1">{k} metrics</div>
+              <div className="text-xs uppercase tracking-wider text-ink-faint mb-1">{k} metrics</div>
               <Metrics m={r.details?.[k]?.metrics} />
             </div>
           ))}
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-ink-faint mb-1">market snapshot</div>
+            <div className="text-xs uppercase tracking-wider text-ink-faint mb-1">market snapshot</div>
             <Metrics m={r.details?.snapshot} />
           </div>
         </div>
@@ -58,7 +58,7 @@ export function SignalDetailDrawer({ id, onClose }: { id: number | null; onClose
           </div>
           {s.closed_reason && <p className="text-sm text-ink-soft">{s.closed_reason}</p>}
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-ink-faint mb-2">Lifecycle</div>
+            <div className="text-xs uppercase tracking-wider text-ink-faint mb-2">Lifecycle</div>
             <ol className="relative border-l border-line ml-2 space-y-3">
               {(s.events ?? []).map((e) => (
                 <li key={e.id} className="ml-4">
@@ -75,7 +75,7 @@ export function SignalDetailDrawer({ id, onClose }: { id: number | null; onClose
           </div>
           {s.trade && (
             <div>
-              <div className="text-[11px] uppercase tracking-wider text-ink-faint mb-1">Trade (underlying)</div>
+              <div className="text-xs uppercase tracking-wider text-ink-faint mb-1">Trade (underlying)</div>
               <Metrics m={{ entry: s.trade.entry_price, exit: s.trade.exit_price, exit_reason: s.trade.exit_reason,
                 pnl_points: s.trade.pnl_points, r_multiple: s.trade.r_multiple, holding_minutes: s.trade.holding_minutes }} />
               {s.trade.pnl_points !== null && (
@@ -84,7 +84,7 @@ export function SignalDetailDrawer({ id, onClose }: { id: number | null; onClose
             </div>
           )}
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-ink-faint mb-1">Breakout</div>
+            <div className="text-xs uppercase tracking-wider text-ink-faint mb-1">Breakout</div>
             <Metrics m={s.breakout} />
           </div>
         </div>

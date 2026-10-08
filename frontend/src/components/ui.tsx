@@ -3,8 +3,8 @@ import { ReactNode } from "react";
 /** Status → tone. Status colours are reserved for state and always carry a text label. */
 const TONE: Record<string, string> = {
   PASS: "text-good border-good/40 bg-good/10",
-  SIGNAL: "text-white border-accent bg-accent",
-  SIGNAL_GENERATED: "text-white border-accent bg-accent",
+  SIGNAL: "text-white border-accent-strong bg-accent-strong",
+  SIGNAL_GENERATED: "text-white border-accent-strong bg-accent-strong",
   QUALIFIED: "text-good border-good/40 bg-good/10",
   ACTIVE: "text-accent border-accent/50 bg-accent/10",
   WAIT: "text-warn border-warn/40 bg-warn/10",
@@ -34,7 +34,7 @@ export function Badge({ s, label, className = "" }: { s?: string | null; label?:
   const key = s ?? "SKIP";
   const text = label ?? (key === "SKIP" ? "—" : key.replace(/_/g, " "));
   return (
-    <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-semibold tracking-wide ${TONE[key] ?? TONE.WATCHING} ${className}`}>
+    <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-semibold tracking-wide ${TONE[key] ?? TONE.WATCHING} ${className}`}>
       {ICON[key] && key !== "SKIP" && <span aria-hidden>{ICON[key]}</span>}
       {text}
     </span>
@@ -61,7 +61,7 @@ export function PageHeader({ title, sub, right }: { title: string; sub?: string;
 export function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) {
   return (
     <div className="card px-4 py-3">
-      <div className="text-[11px] uppercase tracking-wider text-ink-faint">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-ink-faint">{label}</div>
       <div className="num text-xl text-ink mt-1">{value}</div>
       {sub && <div className="text-xs text-ink-faint mt-0.5">{sub}</div>}
     </div>
@@ -95,7 +95,7 @@ export function Drawer({ open, onClose, title, children }: { open: boolean; onCl
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wider text-ink-faint">
+    <label className="flex flex-col gap-1 text-xs uppercase tracking-wider text-ink-faint">
       {label}
       {children}
     </label>

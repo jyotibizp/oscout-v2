@@ -44,7 +44,7 @@ function SymbolPanel({ sym, r }: { sym: string; r: ScanResult | null }) {
         </div>
       </div>
       <div className="mt-3"><Sparkline values={(candles ?? []).map((c) => c.adx)} threshold={20} /></div>
-      <div className="text-[10px] text-ink-faint text-right">5m ADX · dashed = compression threshold</div>
+      <div className="text-xs text-ink-faint text-right">5m ADX · dashed = compression threshold</div>
       <table className="w-full mt-2">
         <tbody>
           {rows(r).map((x) => (

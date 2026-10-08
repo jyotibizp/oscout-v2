@@ -7,7 +7,7 @@ body { @apply bg-canvas text-ink font-sans antialiased; }
 .num { font-variant-numeric: tabular-nums; @apply font-mono; }
 .card { @apply bg-panel border border-line rounded-lg; }
 .btn { @apply inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium border border-line text-ink-soft hover:text-ink hover:bg-raise transition-colors disabled:opacity-50; }
-.btn-primary { @apply inline-flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-semibold bg-accent text-white hover:bg-accent-strong transition-colors disabled:opacity-60; }
+.btn-primary { @apply inline-flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-semibold bg-accent-strong text-white hover:bg-accent-deep transition-colors disabled:opacity-60; }
 .input { @apply bg-raise border border-line rounded-md px-2 py-1 text-sm text-ink focus:outline-none focus:border-accent; }
-.th { @apply text-left text-[11px] uppercase tracking-wider text-ink-faint font-semibold px-3 py-2 border-b border-line whitespace-nowrap; }
+.th { @apply text-left text-xs uppercase tracking-wider text-ink-soft font-semibold px-3 py-2 border-b border-line whitespace-nowrap; }
 .td { @apply px-3 py-2 border-b border-line/60 text-sm whitespace-nowrap; }

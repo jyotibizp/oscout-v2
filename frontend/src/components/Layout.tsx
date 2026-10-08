@@ -19,12 +19,12 @@ function Sidebar() {
     <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-line bg-panel">
       <div className="px-5 h-14 flex items-center border-b border-line">
         <span className="text-accent font-bold tracking-tight">oscout</span>
-        <span className="ml-2 text-[11px] text-ink-faint uppercase tracking-widest">ADX</span>
+        <span className="ml-2 text-xs text-ink-faint uppercase tracking-widest">ADX</span>
       </div>
       <nav className="flex-1 overflow-y-auto py-3">
         {NAV.map((g) => (
           <div key={g.title || "root"} className="mb-3">
-            {g.title && <div className="px-5 pb-1 text-[10px] uppercase tracking-widest text-ink-faint">{g.title}</div>}
+            {g.title && <div className="px-5 pb-1 text-xs uppercase tracking-widest text-ink-faint">{g.title}</div>}
             {g.items.map((i) => (
               <NavLink key={i.to} to={i.to} end
                 className={({ isActive }) =>
@@ -35,7 +35,7 @@ function Sidebar() {
           </div>
         ))}
       </nav>
-      <div className="px-5 py-3 border-t border-line text-[11px] text-ink-faint">One strategy · ADX only</div>
+      <div className="px-5 py-3 border-t border-line text-xs text-ink-faint">One strategy · ADX only</div>
     </aside>
   );
 }
@@ -86,12 +86,12 @@ function Header({ health, reload }: { health: Health | null; reload: () => void 
         <div className="flex items-center gap-2 text-sm">
           <span className={`h-2 w-2 rounded-full ${health?.connected ? "bg-good" : "bg-bad"}`} />
           <span className={health?.connected ? "text-ink" : "text-bad"}>{health ? (health.connected ? "Connected" : "Disconnected") : "…"}</span>
-          {health && <span className="text-[11px] text-ink-faint uppercase">{health.provider}</span>}
+          {health && <span className="text-xs text-ink-faint uppercase">{health.provider}</span>}
         </div>
         <div className="flex flex-wrap gap-1.5">
           {feeds.map((f) => (
             <span key={f.feed} title={f.reason ?? `Last candle ${f.last_candle ?? "—"}`}
-              className={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${f.status === "HEALTHY" ? "border-line text-ink-soft" : "border-bad/50 text-bad"}`}>
+              className={`rounded border px-1.5 py-0.5 text-xs font-medium ${f.status === "HEALTHY" ? "border-line text-ink-soft" : "border-bad/50 text-bad"}`}>
               {f.feed} {f.status === "HEALTHY" ? "✓" : "✕"}
             </span>
           ))}

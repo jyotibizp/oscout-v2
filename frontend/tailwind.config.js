@@ -8,12 +8,12 @@ export default {
         canvas: "#0b1220",    // app background
         panel: "#111a2b",     // surfaces
         raise: "#16213a",     // raised rows / inputs
-        line: "#22304a",      // borders / grid
-        ink: { DEFAULT: "#e6ebf3", soft: "#a9b4c6", faint: "#71809a" },
-        accent: { DEFAULT: "#3b82f6", strong: "#2563eb", soft: "#1e3a6b" },
-        good: "#22c55e",
+        line: "#2a3a58",      // borders / grid
+        ink: { DEFAULT: "#f1f5fb", soft: "#d0d8e4", faint: "#a8b4c7" },  // ≥ 7.5:1 on every surface
+        accent: { DEFAULT: "#60a5fa", strong: "#2563eb", deep: "#1d4ed8", soft: "#1e3a6b" },  // text / buttons
+        good: "#4ade80",
         warn: "#f59e0b",
-        bad: "#ef4444",
+        bad: "#f87171",
       },
       fontFamily: {
         sans: ['Inter', "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
