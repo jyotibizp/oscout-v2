@@ -27,16 +27,16 @@ export function LineChart({ points, height = 220, format = (v: number) => v.toFi
         }}>
         {ticks.map((t, i) => (
           <g key={i}>
-            <line x1={m.l} x2={W - m.r} y1={Y(t)} y2={Y(t)} stroke="#2a3a58" />
-            <text x={m.l - 6} y={Y(t) + 4} textAnchor="end" fontSize="10" fill="#a8b4c7">{format(t)}</text>
+            <line x1={m.l} x2={W - m.r} y1={Y(t)} y2={Y(t)} stroke="#3a3a3a" />
+            <text x={m.l - 6} y={Y(t) + 4} textAnchor="end" fontSize="10" fill="#b8b8b8">{format(t)}</text>
           </g>
         ))}
-        <line x1={m.l} x2={W - m.r} y1={Y(0)} y2={Y(0)} stroke="#a8b4c7" strokeDasharray="3 3" />
-        <path d={path} fill="none" stroke="#60a5fa" strokeWidth="2" />
+        <line x1={m.l} x2={W - m.r} y1={Y(0)} y2={Y(0)} stroke="#b8b8b8" strokeDasharray="3 3" />
+        <path d={path} fill="none" stroke="#a99bff" strokeWidth="2" />
         {hover !== null && (
           <g>
-            <line x1={X(hover)} x2={X(hover)} y1={m.t} y2={H - m.b} stroke="#d0d8e4" strokeWidth="1" />
-            <circle cx={X(hover)} cy={Y(points[hover].y)} r="4" fill="#60a5fa" stroke="#111a2b" strokeWidth="2" />
+            <line x1={X(hover)} x2={X(hover)} y1={m.t} y2={H - m.b} stroke="#dedede" strokeWidth="1" />
+            <circle cx={X(hover)} cy={Y(points[hover].y)} r="4" fill="#a99bff" stroke="#1e1e1e" strokeWidth="2" />
           </g>
         )}
       </svg>
@@ -81,8 +81,8 @@ export function Sparkline({ values, height = 40, threshold }: { values: (number 
   const Y = (y: number) => H - ((y - lo) / (hi - lo)) * H;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }} role="img" aria-label="5m ADX">
-      {threshold !== undefined && <line x1={0} x2={W} y1={Y(threshold)} y2={Y(threshold)} stroke="#a8b4c7" strokeDasharray="3 3" />}
-      <path d={v.map((y, i) => `${i ? "L" : "M"}${X(i)},${Y(y)}`).join("")} fill="none" stroke="#60a5fa" strokeWidth="1.5" />
+      {threshold !== undefined && <line x1={0} x2={W} y1={Y(threshold)} y2={Y(threshold)} stroke="#b8b8b8" strokeDasharray="3 3" />}
+      <path d={v.map((y, i) => `${i ? "L" : "M"}${X(i)},${Y(y)}`).join("")} fill="none" stroke="#a99bff" strokeWidth="1.5" />
     </svg>
   );
 }

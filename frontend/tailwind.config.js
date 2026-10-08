@@ -10,16 +10,16 @@ export default {
   theme: {
     extend: {
       colors: {
-        // dark blue + grey terminal palette
-        canvas: "#0b1220",    // app background
-        panel: "#111a2b",     // surfaces
-        raise: "#16213a",     // raised rows / inputs
-        line: "#2a3a58",      // borders / grid
-        ink: { DEFAULT: "#f1f5fb", soft: "#d0d8e4", faint: "#a8b4c7" },  // ≥ 7.5:1 on every surface
-        accent: { DEFAULT: "#60a5fa", strong: "#2563eb", deep: "#1d4ed8", soft: "#1e3a6b" },  // text / buttons
-        good: "#4ade80",
-        warn: "#f59e0b",
-        bad: "#f87171",
+        // Upstox-style dark theme: charcoal surfaces, white text, purple accent (all text >= 7:1)
+        canvas: "#121212",    // app background
+        panel: "#1e1e1e",     // surfaces
+        raise: "#2a2a2a",     // raised rows / inputs
+        line: "#3a3a3a",      // borders / grid
+        ink: { DEFAULT: "#ffffff", soft: "#dedede", faint: "#b8b8b8" },  // ≥ 7.5:1 on every surface
+        accent: { DEFAULT: "#a99bff", strong: "#6b4ef6", deep: "#5b3fe0", soft: "#2d2546" },  // text / buttons
+        good: "#3ecf8e",
+        warn: "#f5b14c",
+        bad: "#ff6b6b",
       },
       fontFamily: {
         sans: ['Inter', "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
