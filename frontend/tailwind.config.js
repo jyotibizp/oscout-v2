@@ -15,7 +15,7 @@ export default {
         panel: "#1e1e1e",     // surfaces
         raise: "#2a2a2a",     // raised rows / inputs
         line: "#3a3a3a",      // borders / grid
-        ink: { DEFAULT: "#ffffff", soft: "#dedede", faint: "#b8b8b8" },  // ≥ 7.5:1 on every surface
+        ink: { DEFAULT: "#ffffff", soft: "#ffffff", faint: "#ebebeb" },  // ≥ 7.5:1 on every surface
         accent: { DEFAULT: "#a99bff", strong: "#6b4ef6", deep: "#5b3fe0", soft: "#2d2546" },  // text / buttons
         good: "#3ecf8e",
         warn: "#f5b14c",
