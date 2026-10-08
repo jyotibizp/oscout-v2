@@ -18,7 +18,7 @@ function Sidebar() {
   return (
     <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-line bg-panel">
       <div className="px-5 h-14 flex items-center border-b border-line">
-        <span className="text-accent font-bold tracking-tight">oscout</span>
+        <span className="text-lg font-extrabold tracking-wider text-white">OSCOUT</span>
         <span className="ml-2 text-xs text-ink-faint uppercase tracking-widest">ADX</span>
       </div>
       <nav className="flex-1 overflow-y-auto py-3">
