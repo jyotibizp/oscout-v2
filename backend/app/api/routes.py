@@ -252,7 +252,7 @@ def system_health(db: Session = Depends(get_db)):
     feeds = health.all_feeds(db, now, cfg.scanner.max_data_age_minutes)
     last = db.scalar(select(ScanRun).order_by(ScanRun.id.desc()).limit(1))
     return {"now": now.isoformat(), "market_open": is_market_open(now), "provider": p.name,
-            "connected": p.is_connected(), "feeds": feeds, "auto_scan": auto_scanner.status(),
+            "connected": p.is_connected(), "session_date": str(getattr(p, "_token_day", "") or "") or None, "feeds": feeds, "auto_scan": auto_scanner.status(),
             "last_scan": ser.scan_run(last) if last else None}
 
 

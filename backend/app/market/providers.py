@@ -17,6 +17,11 @@ from app.market.symbols import INSTRUMENTS
 log = logging.getLogger(__name__)
 
 
+def _today_ist() -> date:
+    from app.core.clock import now_utc
+    return to_ist(now_utc()).date()
+
+
 class ProviderError(Exception):
     pass
 
@@ -45,11 +50,14 @@ class KiteProvider:
         self.s = s
         self.kite = KiteConnect(api_key=s.kite_api_key)
         self._token = access_token or s.kite_access_token or None
+        self._token_day = _today_ist() if self._token else None
         if self._token:
             self.kite.set_access_token(self._token)
 
     def is_connected(self) -> bool:
-        return bool(self._token)
+        """A Kite access token is valid for the IST trading day it was issued (it expires early next
+        morning), and is dropped as soon as Kite rejects it."""
+        return bool(self._token) and self._token_day == _today_ist()
 
     def login_url(self) -> str:
         return self.kite.login_url()
@@ -64,19 +72,21 @@ class KiteProvider:
 
     def set_token(self, token: str | None) -> None:
         self._token = token
+        self._token_day = _today_ist() if token else None
         if token:
             self.kite.set_access_token(token)
 
     def _call(self, fn, *args, retries: int = 3, **kw):
         from kiteconnect import exceptions as kex
 
-        if not self._token:
+        if not self.is_connected():
             raise AuthError("Broker not connected. Use CONNECT to log in to Kite.")
         delay = 0.5
         for attempt in range(retries):
             try:
                 return fn(*args, **kw)
             except kex.TokenException as e:
+                self.set_token(None)  # expired / revoked: show Disconnected until the next CONNECT
                 raise AuthError(f"Kite session expired or invalid: {e}") from e
             except Exception as e:  # noqa: BLE001 - network/data errors are retried
                 if attempt == retries - 1:
