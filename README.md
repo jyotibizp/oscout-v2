@@ -37,7 +37,7 @@ npm run dev
 ```
 
 With `DATA_PROVIDER=kite`, set `KITE_API_KEY` / `KITE_API_SECRET`, point the Kite app's redirect URL at
-`http://localhost:8000/api/system/callback`, and press **CONNECT** each morning (Kite sessions expire daily).
+`http://localhost:8000/api/system/callback` (or the v1 path `/api/auth/callback`, which also works), and press **CONNECT** each morning (Kite sessions expire daily).
 
 ### Tests
 

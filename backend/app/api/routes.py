@@ -265,6 +265,7 @@ def system_connect():
 
 
 @router.get("/system/callback")
+@router.get("/auth/callback")  # same redirect URL as v1, so the existing Kite app works unchanged
 def system_callback(request_token: str, db: Session = Depends(get_db)):
     p = get_provider()
     if p.name != "kite":
