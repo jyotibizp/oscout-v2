@@ -117,14 +117,16 @@ class MockProvider:
         rnd = random.Random(f"{self.seed}-{symbol}-{d.isoformat()}")
         drift_day = rnd.gauss(0, 1)
         base = self.BASE[symbol] * (1 + 0.002 * math.sin(d.toordinal() / 9.0) + 0.01 * math.sin(d.toordinal() / 37.0))
-        vol = 0.0009 if symbol != "INDIAVIX" else 0.004
-        price = base * (1 + rnd.gauss(0, 0.003))
+        vol = 0.0009 if symbol != "INDIAVIX" else 0.0015
+        price = base * (1 + rnd.gauss(0, 0.0008))
         out, t = [], session_open(d)
-        trend = 0.0
+        trend, ranging = 0.0, True
         while t < session_close(d):
-            if rnd.random() < 0.08:
-                trend = rnd.gauss(0, 1.2) * vol * (1 if symbol != "INDIAVIX" else -0.3)
-            r = trend + rnd.gauss(drift_day * vol * 0.05, vol)
+            if rnd.random() < 0.04:  # regime switch: quiet range (ADX compresses) <-> directional move
+                ranging = not ranging
+                trend = 0.0 if ranging else rnd.choice((-1, 1)) * rnd.uniform(0.15, 0.45) * vol
+            v = vol * (0.6 if ranging else 1.0)
+            r = trend + rnd.gauss(drift_day * vol * 0.05, v)
             o = price
             c = o * (1 + r)
             h = max(o, c) * (1 + abs(rnd.gauss(0, vol * 0.4)))
