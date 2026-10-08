@@ -73,7 +73,9 @@ function Header({ health, reload }: { health: Health | null; reload: () => void 
   const connect = async () => {
     try {
       const r = await api.connect();
-      if (r.login_url) window.open(r.login_url, "_blank");
+      // same-tab navigation: Safari/Chrome block window.open() after an await (popup blocker).
+      // Kite redirects back to the backend callback, which stores the token and returns here.
+      if (r.login_url) window.location.href = r.login_url;
       else setMsg(r.message ?? "Connected");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
