@@ -1,6 +1,12 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// absolute paths so styles build no matter which folder the dev server is started from
+const here = dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  content: [join(here, "index.html"), join(here, "src/**/*.{ts,tsx}")],
   theme: {
     extend: {
       colors: {
