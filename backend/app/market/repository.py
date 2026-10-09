@@ -51,7 +51,9 @@ def _aware(ts: datetime) -> datetime:
 
 
 def vix_snapshot(db: Session, now: datetime, max_age_minutes: int, market_open: bool) -> VixSnapshot | None:
-    last = db.scalar(select(MarketCandle).where(MarketCandle.symbol == VIX, MarketCandle.timeframe == "5m")
+    # latest VIX candle completed by `now` (live: the newest stored one; backfill: as of the scanned candle)
+    last = db.scalar(select(MarketCandle).where(MarketCandle.symbol == VIX, MarketCandle.timeframe == "5m",
+                                                MarketCandle.ts <= now - timedelta(minutes=5))
                      .order_by(MarketCandle.ts.desc()).limit(1))
     if last is None:
         return None
