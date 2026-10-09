@@ -42,6 +42,13 @@ def _close_of_day(b: Bar) -> datetime:
     return session_close(to_ist(b.ts).date())
 
 
+def _when(at: datetime, last: Bar, cutoff: datetime) -> str:
+    """'≈ 14:35 IST', '≈ 15:05 IST, after the entry cutoff' or 'after today's close' (never a time past 15:30)."""
+    if at > _close_of_day(last):
+        return f"after today's {_hm(_close_of_day(last))} close"
+    return f"≈ {_hm(at)} IST" + (", after the entry cutoff" if at > cutoff else "")
+
+
 def _adx_rate(bars: list[Bar], n: int = 5) -> float | None:
     """Average ADX change per candle over the last n candles (negative = falling)."""
     adx = [b.adx for b in bars[-n:] if b.adx is not None]
@@ -123,7 +130,7 @@ def side_rules(symbol: str, state: WilderState | None, bars5: list[Bar], cfg: St
         at = _close_time(last, j - 1)
         comp = {"candles": j, "at": at.isoformat(),
                 "text": f"If {symbol} trades sideways, 5m ADX reaches ≤ {f.compression_threshold:g} and holds "
-                        f"{f.min_compression_candles} candles in about {j} candles ({5 * j} min, ≈ {_hm(at)} IST)."}
+                        f"{f.min_compression_candles} candles in about {j} candles ({5 * j} min, {_when(at, last, cutoff)})."}
     rules = []
     for d in ("CALL", "PUT"):
         mv = breakout_move(states[-1], seq, cfg, d)
@@ -131,13 +138,12 @@ def side_rules(symbol: str, state: WilderState | None, bars5: list[Bar], cfg: St
             continue
         z, k = j + mv["candles"], mv["candles"]
         at = _close_time(last, z - 1)
-        late = f", after the {cfg.scanner.entry_end} cutoff" if at > cutoff else ""
         verb = "rise" if d == "CALL" else "fall"
         lead = "Then a" if j else "A"
         rules.append({"direction": d, "option": OPT[d], **mv, "minutes": 5 * k, "signal_in": z,
                       "signal_at": at.isoformat(), "after_cutoff": at > cutoff,
                       "text": f"{lead} {verb} of {mv['move_pts']} pts in {k} candle{'s' if k > 1 else ''} ({5 * k} min) "
-                              f"triggers a {OPT[d]} breakout, {z} candles from now (≈ {_hm(at)} IST{late})."})
+                              f"triggers a {OPT[d]} breakout, {z} candles from now ({_when(at, last, cutoff)})."})
     return comp, rules
 
 
@@ -174,7 +180,7 @@ def _gate1(res: StrategyResult, bars5: list[Bar], cfg: StrategyConfig, cutoff: d
         return {"gate": "5m ADX", "status": "FAIL", "earliest": None,
                 "text": f"ADX {adx:.1f} is {trend} above {thr:g}: the move is still trending, no compression forming."}
     earliest = _close_time(last, k)
-    when = f" Earliest breakout ≈ {_hm(earliest)} IST" + (" (after the entry cutoff)." if earliest > cutoff else ".")
+    when = f" Earliest breakout: {_when(earliest, last, cutoff)}."
     return {"gate": "5m ADX", "status": g.status, "earliest": earliest.isoformat(), "text": text + when}
 
 

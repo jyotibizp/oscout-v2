@@ -52,3 +52,13 @@ def test_commentary_compression_waiting_names_breakout_trigger():
     c = build(res, bars5, bars15, CFG, None)
     assert c["lines"][0]["status"] == "WAIT" and "next 5m ADX above" in c["lines"][0]["text"]
     assert c["rules"] == [] and "Compression ready" in c["headline"]
+
+
+def test_times_past_the_session_say_after_close():
+    from app.strategy.commentary import _when
+    from tests.conftest import ist
+    last = make_bars([20.0], start=ist(2026, 10, 9, 15, 0))[-1]
+    cutoff = ist(2026, 10, 9, 14, 45)
+    assert _when(ist(2026, 10, 9, 14, 30), last, cutoff) == "≈ 14:30 IST"
+    assert _when(ist(2026, 10, 9, 15, 5), last, cutoff) == "≈ 15:05 IST, after the entry cutoff"
+    assert _when(ist(2026, 10, 9, 15, 40), last, cutoff) == "after today's 15:30 close"
