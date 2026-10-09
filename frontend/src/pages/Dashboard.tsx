@@ -63,36 +63,28 @@ function SignalBlock({ s, onOpen }: { s: Setup; onOpen: () => void }) {
   );
 }
 
-function NextMoves({ r }: { r: ScanResult }) {
-  const c = r.details?.commentary;
-  if (!c || (!c.compression && !c.rules.length && !c.outlook)) return null;
-  return (
-    <div className="space-y-1.5">
-      <div className="text-xs uppercase tracking-widest text-ink-faint">What happens next</div>
-      {c.compression && <p className="text-sm text-ink-soft">{c.compression.text}</p>}
-      {c.rules.map((x) => (
-        <p key={x.direction} className="text-sm text-ink-soft">
-          <span className={`font-semibold ${x.direction === "CALL" ? "text-good" : "text-bad"}`}>{x.option}</span> {x.text}
-        </p>
-      ))}
-      {c.outlook && <p className="text-sm text-ink-soft">{c.outlook}</p>}
-    </div>
-  );
-}
+const CARD_ROWS = 5; // header · verdict · signal or checks · chart · footer, shared by both cards
 
+/** One index card. Its rows sit on the parent grid (subgrid), so both cards line up section by section. */
 function SymbolCard({ sym, r, signal, onSignal, onDetails }: {
   sym: string; r: ScanResult | null; signal?: Setup; onSignal: (id: number) => void; onDetails: (id: number) => void;
 }) {
   const { data: candles } = useApi(() => api.candles(sym, "5m", 90), [sym, r?.id], 60000);
-  if (!r) return <div className="card p-5"><div className="font-semibold">{sym}</div><p className="text-sm text-ink-faint mt-2">No scan yet. Press SCAN NOW.</p></div>;
+  const rows = { gridRow: `span ${CARD_ROWS}`, gridTemplateRows: "subgrid" } as const;
+  if (!r) return (
+    <section className="card p-5 grid gap-4" style={rows}>
+      <h2 className="text-lg font-bold tracking-wide">{sym}</h2>
+      <p className="text-sm text-ink-faint">No scan yet. Press SCAN NOW.</p>
+    </section>
+  );
   const isSignal = r.final_result === "SIGNAL";
   const m1 = r.details?.gate1?.metrics ?? {};
   const level: number | undefined = m1.compression_level ?? undefined;
-  const headline = signal
+  const verdict = signal
     ? `${signal.direction === "CALL" ? "CE" : "PE"} signal active since ${timeIST(signal.signal_ts)} IST. New entries wait until it exits.`
     : r.details?.commentary?.headline ?? r.rejection_reason ?? r.details?.reason;
   return (
-    <section className={`card p-5 space-y-4 ${isSignal || signal ? "border-accent" : ""}`}>
+    <section className={`card p-5 grid gap-4 ${isSignal || signal ? "border-accent" : ""}`} style={rows}>
       <header className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold tracking-wide">{sym}</h2>
@@ -104,22 +96,73 @@ function SymbolCard({ sym, r, signal, onSignal, onDetails }: {
         </div>
       </header>
 
-      {headline && <p className="text-base text-ink font-medium leading-snug">{headline}</p>}
-      {signal && <SignalBlock s={signal} onOpen={() => onSignal(signal.id)} />}
+      <p className="text-base text-ink font-medium leading-snug">{verdict ?? "—"}</p>
 
-      {!signal && <Stepper r={r} />}
+      <div>{signal ? <SignalBlock s={signal} onOpen={() => onSignal(signal.id)} /> : <Stepper r={r} />}</div>
 
-      <div>
+      <div className="self-end">
         <Sparkline values={(candles ?? []).map((c) => c.adx)} threshold={level} height={64} />
-        <div className="flex justify-between text-xs text-ink-faint mt-1">
+        <div className="flex justify-between gap-2 text-xs text-ink-faint mt-1">
           <span>5m ADX · last 90 candles</span>
           <span>{level != null ? `dashed = compression level ${n(level)}${m1.adx_peak ? ` (${Math.round((level / m1.adx_peak) * 100)}% of peak ${n(m1.adx_peak)})` : ""}` : ""}</span>
         </div>
       </div>
 
-      {!signal && <NextMoves r={r} />}
-
       <div className="flex justify-end"><button className="btn" onClick={() => onDetails(r.id)}>Full gate details</button></div>
+    </section>
+  );
+}
+
+/** One full-width commentary widget for both indexes, side by side. */
+function CommentaryPanel({ syms, active }: { syms: Record<string, ScanResult | null | undefined>; active: Setup[] }) {
+  return (
+    <section className="card p-5">
+      <h2 className="text-xs uppercase tracking-widest text-ink-faint mb-4">Commentary</h2>
+      <div className="grid gap-6 xl:grid-cols-2 xl:divide-x xl:divide-line">
+        {["NIFTY", "SENSEX"].map((sym, i) => {
+          const r = syms[sym];
+          const c = r?.details?.commentary;
+          const sig = active.find((a) => a.symbol === sym);
+          return (
+            <div key={sym} className={i ? "xl:pl-6" : ""}>
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="text-sm font-bold tracking-wide">{sym}</span>
+                <span className="text-xs text-ink-faint">{c?.candle_close ? `${c.candle_close} IST candle` : ""}</span>
+              </div>
+              {!c ? <p className="text-sm text-ink-faint">No commentary yet.</p> : (
+                <div className="space-y-3">
+                  <p className="text-sm text-ink font-medium">
+                    {sig ? `${sig.direction === "CALL" ? "CE" : "PE"} signal active since ${timeIST(sig.signal_ts)} IST.` : c.headline}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {c.lines.map((l) => (
+                      <li key={l.gate} className="grid grid-cols-[92px_auto_1fr] items-start gap-2 text-xs text-ink-soft leading-relaxed">
+                        <span className="text-ink-faint pt-0.5">{l.gate}</span>
+                        <Badge s={l.status} />
+                        <span>{l.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {sig ? (
+                    <p className="text-sm text-ink-soft">The next-setup rules are paused until this signal exits.</p>
+                  ) : (c.compression || c.rules.length > 0 || c.outlook) && (
+                    <div className="space-y-1.5 border-t border-line/60 pt-3">
+                      <div className="text-xs uppercase tracking-widest text-ink-faint">What happens next</div>
+                      {c.compression && <p className="text-sm text-ink-soft">{c.compression.text}</p>}
+                      {c.rules.map((x) => (
+                        <p key={x.direction} className="text-sm text-ink-soft">
+                          <span className={`font-semibold ${x.direction === "CALL" ? "text-good" : "text-bad"}`}>{x.option}</span> {x.text}
+                        </p>
+                      ))}
+                      {c.outlook && <p className="text-sm text-ink-soft">{c.outlook}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -140,12 +183,13 @@ export default function Dashboard() {
       <PageHeader title="Is there a trade right now?"
         sub={run ? `${summary} · last scan #${run.id} (${run.trigger}) at ${timeIST(run.started_at)} IST` : "No scans yet"} />
       <ErrorNote error={latest.error} />
-      <div className="grid gap-5 xl:grid-cols-2 items-start">
+      <div className="grid gap-x-5 gap-y-5 xl:gap-y-0 xl:grid-cols-2">
         {["NIFTY", "SENSEX"].map((s) => (
           <SymbolCard key={s} sym={s} r={syms[s] ?? null} signal={active.find((a) => a.symbol === s)}
             onSignal={setOpenSignal} onDetails={setOpenScan} />
         ))}
       </div>
+      <div className="mt-5"><CommentaryPanel syms={syms} active={active} /></div>
       <SignalDetailDrawer id={openSignal} onClose={() => setOpenSignal(null)} />
       <ScanDetailDrawer id={openScan} onClose={() => setOpenScan(null)} />
     </div>
