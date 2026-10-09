@@ -39,14 +39,14 @@ def test_commentary_cooling_adx_gives_eta_and_rules():
     c = build(res, bars5, bars15, CFG, _uptrend_state())
     assert c["bias"] == "CE" and c["headline"].startswith("No setup near")
     g1 = c["lines"][0]
-    assert g1["gate"] == "5m ADX" and "needs ≤ 20" in g1["text"] and g1["earliest"]
+    assert g1["gate"] == "5m ADX" and "needs ≤ 12.0 (40% of peak 30.0)" in g1["text"] and g1["earliest"]
     assert "slope" in c["lines"][1]["text"] and c["lines"][1]["would_pass"] is False
     assert [v["option"] for v in c["rules"]] == ["CE", "PE"]
     assert c["compression"]["text"] and c["outlook"] is None
 
 
 def test_commentary_compression_waiting_names_breakout_trigger():
-    bars5 = make_bars([25.0] * 14 + [17.0] * 10)
+    bars5 = make_bars([50.0] * 14 + [17.0] * 10)
     bars15 = make_bars([22.0] * 20, step_minutes=15)
     res = evaluate("NIFTY", bars5, bars15, bars5, VIX, CFG)
     c = build(res, bars5, bars15, CFG, None)

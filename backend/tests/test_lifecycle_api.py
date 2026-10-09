@@ -96,3 +96,19 @@ def test_kite_session_is_valid_for_issue_day_only(monkeypatch):
     assert not p.is_connected()
     p.set_token(None)
     assert not p.is_connected()
+
+
+def test_legacy_fixed_config_moves_to_peak_mode_as_a_new_version(db):
+    from app.db.models import StrategyConfiguration
+    from app.strategy import store
+    from app.strategy.config import StrategyConfig
+    params = StrategyConfig().model_dump()
+    for k in ("compression_mode", "compression_peak_pct", "peak_lookback_candles"):
+        params["five_min"].pop(k)
+    db.add(StrategyConfiguration(version="1.0.0", params=params, is_active=True, note="old"))
+    db.commit()
+    row, cfg = store.get_active(db)
+    assert row.version == "1.0.1" and cfg.five_min.compression_mode == "peak_pct"
+    old = db.query(StrategyConfiguration).filter_by(version="1.0.0").one()
+    assert not old.is_active and StrategyConfig.model_validate(old.params).five_min.compression_mode == "fixed"
+    assert store.get_active(db)[0].version == "1.0.1"  # migrates once

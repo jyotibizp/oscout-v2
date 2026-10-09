@@ -87,20 +87,44 @@ def _dname(d: int) -> str | None:
     return {1: "CALL", -1: "PUT"}.get(d)
 
 
-def compression_run(adx: list[float | None], end: int, threshold: float, cap: int) -> int:
-    """Consecutive candles ending at index `end` (inclusive) with ADX <= threshold (counted up to cap)."""
+def compression_level(adx: list[float | None], i: int, c) -> tuple[float | None, float | None]:
+    """(compression level, recent peak) at index i. peak_pct mode: a % of the highest ADX over the lookback
+    (so a 50 peak compresses at 20 and a 60 peak at 24); fixed mode: the fixed threshold."""
+    if c.compression_mode == "fixed":
+        return c.compression_threshold, None
+    vals = [x for x in adx[max(0, i - c.peak_lookback_candles + 1):i + 1] if x is not None]
+    if not vals:
+        return None, None
+    peak = max(vals)
+    return peak * c.compression_peak_pct / 100.0, peak
+
+
+def compression_levels(adx: list[float | None], c) -> list[float | None]:
+    return [compression_level(adx, i, c)[0] for i in range(len(adx))]
+
+
+def compression_run(adx: list[float | None], end: int, levels: list[float | None], cap: int) -> int:
+    """Consecutive candles ending at index `end` (inclusive) with ADX <= that candle's compression level
+    (counted up to cap)."""
     n = 0
     i = end
-    while i >= 0 and adx[i] is not None and adx[i] <= threshold and n <= cap:
+    while i >= 0 and adx[i] is not None and levels[i] is not None and adx[i] <= levels[i] and n <= cap:
         n += 1
         i -= 1
     return n
+
+
+def _level_text(c, level: float | None, peak: float | None) -> str:
+    if c.compression_mode == "fixed" or peak is None:
+        return f"≤ {level:g}" if level is not None else "≤ —"
+    return f"≤ {level:.1f} ({c.compression_peak_pct:g}% of peak {peak:.1f})"
 
 
 def gate1(bars: list[Bar], cfg: StrategyConfig) -> GateResult:
     c = cfg.five_min
     adx = [b.adx for b in bars]
     t = len(bars) - 1
+    levels = compression_levels(adx, c)
     need = c.min_compression_candles + c.breakout_lookback + 2
     if t < need or adx[t] is None:
         return GateResult(FAIL, [f"Insufficient 5m ADX history ({len(bars)} candles)"])
@@ -108,7 +132,7 @@ def gate1(bars: list[Bar], cfg: StrategyConfig) -> GateResult:
         """(run, avg, inc, sep) if candle b is a breakout out of a compression, else None."""
         if b < need or adx[b] is None or adx[b - 1] is None:
             return None
-        run = compression_run(adx, b - 1, c.compression_threshold, c.max_compression_candles)
+        run = compression_run(adx, b - 1, levels, c.max_compression_candles)
         if run < c.min_compression_candles or run > c.max_compression_candles:
             return None
         prev = [x for x in adx[b - c.breakout_lookback:b] if x is not None]
@@ -136,21 +160,24 @@ def gate1(bars: list[Bar], cfg: StrategyConfig) -> GateResult:
               "adx_avg_before": _f(avg), "pdi": _f(bars[b].pdi), "mdi": _f(bars[b].mdi), "di_separation": _f(abs(sep)),
               "direction": _dname(d), "compression_candles": run, "compression_low": _f(min(comp)),
               "ohlc": {"open": bars[b].open, "high": bars[b].high, "low": bars[b].low, "close": bars[b].close},
-              "candles_since": back}
+              "candles_since": back, "compression_level": _f(levels[b - 1]),
+              "adx_peak": _f(compression_level(adx, b - 1, c)[1])}
         now_dir = _dir_of(bars[t].pdi, bars[t].mdi)
         if now_dir != d:
             return GateResult(FAIL, [f"Breakout at {to_ist(bars[b].ts):%H:%M} invalidated: DI direction flipped"], bo)
-        reasons = [f"ADX compressed ≤ {c.compression_threshold:g} for {run} candles (low {min(comp):.1f})",
+        reasons = [f"ADX compressed {_level_text(c, *compression_level(adx, b - 1, c))} for {run} candles (low {min(comp):.1f})",
                    f"Breakout {to_ist(bars[b].ts):%H:%M}: ADX {adx[b-1]:.1f} → {adx[b]:.1f} (above {c.breakout_lookback}-candle avg {avg:.1f})",
                    f"{'+DI' if d > 0 else '−DI'} leads by {abs(sep):.1f} → {_dname(d)}"]
         return GateResult(PASS, reasons, bo)
-    run_now = compression_run(adx, t, c.compression_threshold, c.max_compression_candles)
-    m = {"compression_candles": run_now, "adx": _f(adx[t])}
+    run_now = compression_run(adx, t, levels, c.max_compression_candles)
+    level, peak = compression_level(adx, t, c)
+    m = {"compression_candles": run_now, "adx": _f(adx[t]), "compression_level": _f(level), "adx_peak": _f(peak)}
+    lt = _level_text(c, level, peak)
     if run_now >= c.min_compression_candles and run_now <= c.max_compression_candles:
-        return GateResult(WAIT, [f"ADX compressed for {run_now} candles (≤ {c.compression_threshold:g}); waiting for breakout"], m)
+        return GateResult(WAIT, [f"ADX compressed for {run_now} candles ({lt}); waiting for breakout"], m)
     if run_now > c.max_compression_candles:
         return GateResult(FAIL, [f"Compression longer than {c.max_compression_candles} candles (dead market)"], m)
-    return GateResult(FAIL, [f"No ADX compression → breakout (ADX {adx[t]:.1f}, compressed {run_now} candles)"], m)
+    return GateResult(FAIL, [f"No ADX compression → breakout (ADX {adx[t]:.1f}, needs {lt}, compressed {run_now} candles)"], m)
 
 
 def gate2(bars15: list[Bar], direction: int, cfg: StrategyConfig) -> GateResult:

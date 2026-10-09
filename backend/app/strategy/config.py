@@ -15,8 +15,16 @@ class _Group(BaseModel):
 
 class FiveMinSettings(_Group):
     adx_period: int = Field(14, ge=5, le=50, title="ADX Period", description="Wilder period for 5m ADX, +DI, -DI.")
-    compression_threshold: float = Field(20.0, ge=5, le=40, title="Compression Threshold",
-                                         description="ADX at or below this level counts as compressed.")
+    compression_mode: Literal["peak_pct", "fixed"] = Field(
+        "peak_pct", title="Compression Mode",
+        description="peak_pct: compressed = ADX at or below a % of its recent peak (a 50 peak compresses at 20, a 60 peak at 24). "
+                    "fixed: ADX at or below the fixed threshold.")
+    compression_peak_pct: float = Field(40.0, ge=10, le=90, title="Compression % of Peak",
+                                        description="peak_pct mode: ADX at or below this % of its recent peak counts as compressed.")
+    peak_lookback_candles: int = Field(75, ge=10, le=300, title="Peak Lookback",
+                                       description="peak_pct mode: peak = highest 5m ADX over the last N candles (75 = one session).")
+    compression_threshold: float = Field(20.0, ge=5, le=40, title="Fixed Compression Threshold",
+                                         description="fixed mode: ADX at or below this level counts as compressed.")
     min_compression_candles: int = Field(6, ge=2, le=100, title="Min Compression Candles",
                                          description="ADX must stay compressed for at least this many 5m candles before the breakout.")
     max_compression_candles: int = Field(75, ge=2, le=500, title="Max Compression Candles",
@@ -31,6 +39,15 @@ class FiveMinSettings(_Group):
                                      description="|+DI − −DI| on the breakout candle. +DI leading = CALL, −DI leading = PUT.")
     breakout_valid_candles: int = Field(3, ge=1, le=12, title="Breakout Valid For",
                                         description="5m candles a breakout stays valid while waiting for 15m confirmation.")
+
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_mode(cls, data):
+        # configurations saved before peak-relative compression existed used the fixed threshold
+        if isinstance(data, dict) and "compression_threshold" in data and "compression_mode" not in data:
+            data = {**data, "compression_mode": "fixed"}
+        return data
 
 
 class FifteenMinSettings(_Group):
