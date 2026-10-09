@@ -1,100 +1,153 @@
 import { useState } from "react";
-import { api, ScanResult } from "../api/client";
+import { api, ScanResult, Setup } from "../api/client";
 import { Sparkline } from "../components/Charts";
-import { Commentary } from "../components/Commentary";
-import { SignalDetailDrawer } from "../components/Details";
-import { Pipeline } from "../components/Pipeline";
-import { SignalCard } from "../components/SignalCard";
+import { ScanDetailDrawer, SignalDetailDrawer } from "../components/Details";
 import { Badge, Dir, ErrorNote, PageHeader } from "../components/ui";
 import { n, signed, timeIST } from "../lib/format";
 import { useApi } from "../lib/hooks";
 
-/** Map the stored scan result to the dashboard rows: PASS / WAIT / FAILED / EXHAUSTED / SIGNAL. */
-function rows(r: ScanResult) {
+type Step = { k: string; s: string; v: string };
+
+/** The five checks in pipeline order, each with its status and the one number that matters. */
+function steps(r: ScanResult): Step[] {
   const d = r.details;
   const g1 = d?.gate1;
-  const comp = g1?.metrics?.compression_candles;
+  const m1 = g1?.metrics ?? {};
   const g1Failed = g1?.status === "FAIL" && /invalidated|dead market|Insufficient/.test(g1?.reasons?.[0] ?? "");
-  const compressionStatus = g1?.status === "PASS" || g1?.status === "WAIT" ? "PASS" : g1Failed ? "FAILED" : "WAIT";
+  const compressed = g1?.status === "PASS" || g1?.status === "WAIT";
   const atrStatus = d?.atr?.metrics?.atr_status;
+  const level = m1.compression_level;
   return [
-    { k: "ADX Status", s: (r.adx5 ?? 0) >= 25 ? "TRENDING" : (r.adx5 ?? 0) <= 20 ? "COMPRESSED" : "NEUTRAL", v: `5m ${n(r.adx5)}  +DI ${n(r.pdi5)} −DI ${n(r.mdi5)}`, plain: true },
-    { k: "Compression", s: compressionStatus, v: comp !== undefined ? `${comp} candles` : "" },
-    { k: "Breakout", s: g1?.status === "PASS" ? "PASS" : g1Failed ? "FAILED" : "WAIT", v: g1?.metrics?.adx_at ? `${n(g1.metrics.adx_before)} → ${n(g1.metrics.adx_at)}` : "" },
-    { k: "15M Confirmation", s: d?.gate2?.status === "PASS" ? "PASS" : d?.gate2?.status === "SKIP" ? "WAIT" : "FAILED", v: `15m ADX ${n(r.adx15)} slope ${signed(d?.gate2?.metrics?.slope)}` },
-    { k: "ATR", s: atrStatus === "EXHAUSTED" ? "EXHAUSTED" : atrStatus === "WARNING" ? "WAIT" : atrStatus ? "PASS" : "WAIT", v: atrStatus ? `${atrStatus} · ${n(d?.atr?.metrics?.ratio, 2)}×` : "" },
-    { k: "VIX", s: d?.vix?.status === "PASS" ? "PASS" : d?.vix?.status === "FAIL" ? "FAILED" : "WAIT", v: `${n(r.vix, 2)} (${signed(r.vix_change_pct)}%)` },
+    { k: "Compression", s: compressed ? "PASS" : g1Failed ? "FAILED" : "WAIT",
+      v: `${m1.compression_candles ?? 0} candles${level != null ? ` ≤ ${n(level)}` : ""}` },
+    { k: "Breakout", s: g1?.status === "PASS" ? "PASS" : g1Failed ? "FAILED" : "WAIT",
+      v: m1.adx_at != null ? `${n(m1.adx_before)} → ${n(m1.adx_at)}` : `5m ADX ${n(r.adx5)}` },
+    { k: "15m trend", s: d?.gate2?.status === "PASS" ? "PASS" : d?.gate2?.status === "FAIL" ? "FAILED" : "WAIT",
+      v: `ADX ${n(r.adx15)} · slope ${signed(d?.gate2?.metrics?.slope)}` },
+    { k: "ATR", s: atrStatus === "EXHAUSTED" ? "EXHAUSTED" : atrStatus === "WARNING" ? "WAIT" : atrStatus ? "PASS" : "WAIT",
+      v: atrStatus ? `${n(d?.atr?.metrics?.ratio, 2)}× ${atrStatus.toLowerCase()}` : "—" },
+    { k: "VIX", s: d?.vix?.status === "PASS" ? "PASS" : d?.vix?.status === "FAIL" ? "FAILED" : "WAIT",
+      v: `${n(r.vix, 2)} (${signed(r.vix_change_pct)}%)` },
   ];
 }
 
-function SymbolPanel({ sym, r }: { sym: string; r: ScanResult | null }) {
-  const { data: candles } = useApi(() => api.candles(sym, "5m", 90), [sym, r?.id], 60000);
-  if (!r) return <div className="card p-4"><div className="font-semibold">{sym}</div><p className="text-sm text-ink-faint mt-2">No scan yet — press SCAN NOW.</p></div>;
-  const signal = r.final_result === "SIGNAL";
-  const finalLabel = signal ? `${r.direction} BUY` : r.state === "ACTIVE" ? `ACTIVE ${r.direction ?? ""}` : "NO SIGNAL";
+function Stepper({ r }: { r: ScanResult }) {
   return (
-    <div className={`card p-4 ${signal ? "border-accent" : ""}`}>
-      <div className="flex items-center justify-between">
+    <ol className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      {steps(r).map((x, i) => (
+        <li key={x.k} className="rounded-lg border border-line bg-raise/40 px-2.5 py-2">
+          <div className="text-xs text-ink-faint">{i + 1}. {x.k}</div>
+          <div className="mt-1"><Badge s={x.s} /></div>
+          <div className="mt-1 text-xs num text-ink leading-snug">{x.v}</div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function SignalBlock({ s, onOpen }: { s: Setup; onOpen: () => void }) {
+  const up = s.direction === "CALL";
+  return (
+    <div className={`rounded-lg border-l-4 ${up ? "border-l-good" : "border-l-bad"} bg-raise/60 px-4 py-3`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className={`text-xl font-bold ${up ? "text-good" : "text-bad"}`}>{s.direction} BUY <span className="text-sm font-medium text-ink-faint">({up ? "CE" : "PE"})</span></div>
+        <div className="flex items-center gap-2"><Badge s={s.state} /><button className="btn" onClick={onOpen}>Lifecycle</button></div>
+      </div>
+      <dl className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm">
+        <div><dt className="text-xs text-ink-faint">Signal</dt><dd className="num">{timeIST(s.signal_ts)} IST</dd></div>
+        <div><dt className="text-xs text-ink-faint">Entry (index)</dt><dd className="num">{n(s.entry_price, 2)}</dd></div>
+        <div><dt className="text-xs text-ink-faint">Stop</dt><dd className="num text-bad">{n(s.stop_price, 1)}</dd></div>
+        <div><dt className="text-xs text-ink-faint">Target</dt><dd className="num text-good">{n(s.target_price, 1)}</dd></div>
+      </dl>
+    </div>
+  );
+}
+
+function NextMoves({ r }: { r: ScanResult }) {
+  const c = r.details?.commentary;
+  if (!c || (!c.compression && !c.rules.length && !c.outlook)) return null;
+  return (
+    <div className="space-y-1.5">
+      <div className="text-xs uppercase tracking-widest text-ink-faint">What happens next</div>
+      {c.compression && <p className="text-sm text-ink-soft">{c.compression.text}</p>}
+      {c.rules.map((x) => (
+        <p key={x.direction} className="text-sm text-ink-soft">
+          <span className={`font-semibold ${x.direction === "CALL" ? "text-good" : "text-bad"}`}>{x.option}</span> {x.text}
+        </p>
+      ))}
+      {c.outlook && <p className="text-sm text-ink-soft">{c.outlook}</p>}
+    </div>
+  );
+}
+
+function SymbolCard({ sym, r, signal, onSignal, onDetails }: {
+  sym: string; r: ScanResult | null; signal?: Setup; onSignal: (id: number) => void; onDetails: (id: number) => void;
+}) {
+  const { data: candles } = useApi(() => api.candles(sym, "5m", 90), [sym, r?.id], 60000);
+  if (!r) return <div className="card p-5"><div className="font-semibold">{sym}</div><p className="text-sm text-ink-faint mt-2">No scan yet. Press SCAN NOW.</p></div>;
+  const isSignal = r.final_result === "SIGNAL";
+  const m1 = r.details?.gate1?.metrics ?? {};
+  const level: number | undefined = m1.compression_level ?? undefined;
+  const headline = signal
+    ? `${signal.direction === "CALL" ? "CE" : "PE"} signal active since ${timeIST(signal.signal_ts)} IST. New entries wait until it exits.`
+    : r.details?.commentary?.headline ?? r.rejection_reason ?? r.details?.reason;
+  return (
+    <section className={`card p-5 space-y-4 ${isSignal || signal ? "border-accent" : ""}`}>
+      <header className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-base font-semibold tracking-wide">{sym}</div>
-          <div className="text-xs text-ink-faint">Candle {timeIST(r.candle_ts)} IST · v{r.config_version}</div>
+          <h2 className="text-lg font-bold tracking-wide">{sym}</h2>
+          <div className="text-xs text-ink-faint">Candle {timeIST(r.candle_ts)} IST · config v{r.config_version}</div>
         </div>
-        <div className="text-right">
-          <Badge s={signal ? "SIGNAL" : r.state} label={finalLabel} />
-          <div className="mt-1"><Dir d={r.direction} /></div>
+        <div className="flex items-center gap-2">
+          <Dir d={r.direction} />
+          <Badge s={isSignal ? "SIGNAL" : r.state} label={isSignal ? `${r.direction} BUY` : undefined} />
+        </div>
+      </header>
+
+      {headline && <p className="text-base text-ink font-medium leading-snug">{headline}</p>}
+      {signal && <SignalBlock s={signal} onOpen={() => onSignal(signal.id)} />}
+
+      {!signal && <Stepper r={r} />}
+
+      <div>
+        <Sparkline values={(candles ?? []).map((c) => c.adx)} threshold={level} height={64} />
+        <div className="flex justify-between text-xs text-ink-faint mt-1">
+          <span>5m ADX · last 90 candles</span>
+          <span>{level != null ? `dashed = compression level ${n(level)}${m1.adx_peak ? ` (${Math.round((level / m1.adx_peak) * 100)}% of peak ${n(m1.adx_peak)})` : ""}` : ""}</span>
         </div>
       </div>
-      <div className="mt-3"><Sparkline values={(candles ?? []).map((c) => c.adx)} threshold={20} /></div>
-      <div className="text-xs text-ink-faint text-right">5m ADX · dashed = compression threshold</div>
-      <table className="w-full mt-2">
-        <tbody>
-          {rows(r).map((x) => (
-            <tr key={x.k} className="border-b border-line/50">
-              <td className="py-1.5 text-sm text-ink-soft">{x.k}</td>
-              <td className="py-1.5 text-xs num text-ink-faint text-right pr-3">{x.v}</td>
-              <td className="py-1.5 text-right w-28">{x.plain ? <span className="text-xs text-ink">{x.s}</span> : <Badge s={x.s} />}</td>
-            </tr>
-          ))}
-          <tr>
-            <td className="py-2 text-sm font-semibold">Final Signal</td>
-            <td />
-            <td className="py-2 text-right">{signal ? <Badge s="SIGNAL" label="SIGNAL" /> : <Badge s={r.state === "ACTIVE" ? "ACTIVE" : "WATCHING"} label={r.state === "ACTIVE" ? "ACTIVE" : "NONE"} />}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p className="mt-3 text-xs text-ink-soft leading-relaxed">{r.final_result === "SIGNAL" ? r.details?.reason : r.rejection_reason ?? r.details?.reason}</p>
-      {r.details?.commentary && <div className="mt-3 pt-3 border-t border-line/50"><Commentary c={r.details.commentary} /></div>}
-    </div>
+
+      {!signal && <NextMoves r={r} />}
+
+      <div className="flex justify-end"><button className="btn" onClick={() => onDetails(r.id)}>Full gate details</button></div>
+    </section>
   );
 }
 
 export default function Dashboard() {
   const latest = useApi(api.latest, [], 15000);
   const sig = useApi(api.activeSignals, [], 15000);
-  const [open, setOpen] = useState<number | null>(null);
+  const [openSignal, setOpenSignal] = useState<number | null>(null);
+  const [openScan, setOpenScan] = useState<number | null>(null);
   const syms = latest.data?.symbols ?? {};
   const active = sig.data?.active ?? [];
+  const run = latest.data?.run;
+  const summary = active.length
+    ? `${active.length} active signal${active.length > 1 ? "s" : ""}: ${active.map((s) => `${s.symbol} ${s.direction}`).join(", ")}`
+    : sig.data?.pending.length ? `${sig.data.pending.length} setup(s) waiting for 15m confirmation` : "No active signal";
   return (
-    <div>
-      <PageHeader title="Is there a trade right now?" sub={latest.data?.run ? `Last scan #${latest.data.run.id} (${latest.data.run.trigger}) at ${timeIST(latest.data.run.started_at)} IST` : "No scans yet"} />
+    <div className="max-w-7xl">
+      <PageHeader title="Is there a trade right now?"
+        sub={run ? `${summary} · last scan #${run.id} (${run.trigger}) at ${timeIST(run.started_at)} IST` : "No scans yet"} />
       <ErrorNote error={latest.error} />
-      {active.length > 0 ? (
-        <div className="grid gap-4 lg:grid-cols-2 mb-6">{active.map((s) => <SignalCard key={s.id} s={s} onOpen={() => setOpen(s.id)} />)}</div>
-      ) : (
-        <div className="card px-4 py-3 mb-6 text-sm text-ink-soft">No active signal. {sig.data?.pending.length ? `${sig.data.pending.length} setup(s) waiting for 15m confirmation.` : "Watching for ADX compression → breakout."}</div>
-      )}
-      <div className="grid gap-4 xl:grid-cols-2">
-        {["NIFTY", "SENSEX"].map((s) => <SymbolPanel key={s} sym={s} r={syms[s] ?? null} />)}
+      <div className="grid gap-5 xl:grid-cols-2 items-start">
+        {["NIFTY", "SENSEX"].map((s) => (
+          <SymbolCard key={s} sym={s} r={syms[s] ?? null} signal={active.find((a) => a.symbol === s)}
+            onSignal={setOpenSignal} onDetails={setOpenScan} />
+        ))}
       </div>
-      <div className="grid gap-4 xl:grid-cols-2 mt-6">
-        {["NIFTY", "SENSEX"].map((s) => syms[s] ? (
-          <div key={s} className="card p-4">
-            <div className="text-xs uppercase tracking-widest text-ink-faint mb-3">{s} · qualification pipeline</div>
-            <Pipeline r={syms[s]!} />
-          </div>
-        ) : null)}
-      </div>
-      <SignalDetailDrawer id={open} onClose={() => setOpen(null)} />
+      <SignalDetailDrawer id={openSignal} onClose={() => setOpenSignal(null)} />
+      <ScanDetailDrawer id={openScan} onClose={() => setOpenScan(null)} />
     </div>
   );
 }

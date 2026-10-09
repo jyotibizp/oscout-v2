@@ -144,8 +144,8 @@ def side_rules(symbol: str, state: WilderState | None, bars5: list[Bar], cfg: St
         lead = "Then a" if j else "A"
         rules.append({"direction": d, "option": OPT[d], **mv, "minutes": 5 * k, "signal_in": z,
                       "signal_at": at.isoformat(), "after_cutoff": at > cutoff,
-                      "text": f"{lead} {verb} of {mv['move_pts']} pts in {k} candle{'s' if k > 1 else ''} ({5 * k} min) "
-                              f"triggers a {OPT[d]} breakout, {z} candles from now ({_when(at, last, cutoff)})."})
+                      "text": f"{lead} {verb} of {mv['move_pts']} pt{'s' if mv['move_pts'] != 1 else ''} in {k} candle{'s' if k > 1 else ''} ({5 * k} min) "
+                              f"triggers a {OPT[d]} breakout, {z} candle{'s' if z > 1 else ''} from now ({_when(at, last, cutoff)})."})
     return comp, rules
 
 
@@ -268,10 +268,10 @@ def build(res: StrategyResult, bars5: list[Bar], bars15: list[Bar], cfg: Strateg
             outlook = f"Earliest setup ≈ {_hm(datetime.fromisoformat(earliest))} IST, after the {cfg.scanner.entry_end} cutoff: unlikely today."
         else:
             outlook = "No compression forming yet."
-        if compression:  # the shared compression step already says when a setup can form
-            outlook = None
         g1m = res.gate1.metrics or {}
         headline = (f"No setup near: 5m ADX {last.adx:.1f} must cool to "
                     f"{_level_text(cfg.five_min, g1m.get('compression_level'), g1m.get('adx_peak'))} first.")
+    if compression:  # the shared compression step already says when a setup can form
+        outlook = None
     return {"headline": headline, "bias": bias, "lines": lines, "compression": compression, "rules": rules, "outlook": outlook,
             "candle_close": _hm(_close_time(last))}
