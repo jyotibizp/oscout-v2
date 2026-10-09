@@ -9,3 +9,4 @@
 | 5 | Leading indicator: range contraction | Backlog | NR7, inside bars, falling ATR: price-only compression hints for the pre-alert (#3). |
 | 6 | Leading indicator: direction hints | Backlog | 5m DI crossover, RSI 50 cross, MACD histogram turn: early CE/PE side for the pre-alert (#3). |
 | 7 | Leading indicator: option-chain data | Backlog | OI build-up by strike and PCR. Needs option-chain snapshots (Phase 2). |
+| 8 | Daily ATR "day range used" warning | Backlog | Show today's range so far as % of the 14-day daily ATR beside the 5m ATR warning (card + commentary); warning only. Decide on a blocking rule once there is more data (60-day backfill: only 3 of 47 signals came above 80%). |
