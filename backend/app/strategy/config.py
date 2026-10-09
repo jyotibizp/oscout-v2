@@ -17,9 +17,9 @@ class FiveMinSettings(_Group):
     adx_period: int = Field(14, ge=5, le=50, title="ADX Period", description="Wilder period for 5m ADX, +DI, -DI.")
     compression_mode: Literal["peak_pct", "fixed"] = Field(
         "peak_pct", title="Compression Mode",
-        description="peak_pct: compressed = ADX at or below a % of its recent peak (a 50 peak compresses at 20, a 60 peak at 24). "
+        description="peak_pct: compressed = ADX at or below a % of its recent peak (at 50%: a 40 peak compresses at 20, a 60 peak at 30). "
                     "fixed: ADX at or below the fixed threshold.")
-    compression_peak_pct: float = Field(40.0, ge=10, le=90, title="Compression % of Peak",
+    compression_peak_pct: float = Field(50.0, ge=10, le=90, title="Compression % of Peak",
                                         description="peak_pct mode: ADX at or below this % of its recent peak counts as compressed.")
     peak_lookback_candles: int = Field(75, ge=10, le=300, title="Peak Lookback",
                                        description="peak_pct mode: peak = highest 5m ADX over the last N candles (75 = one session).")

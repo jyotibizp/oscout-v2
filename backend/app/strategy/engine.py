@@ -89,7 +89,7 @@ def _dname(d: int) -> str | None:
 
 def compression_level(adx: list[float | None], i: int, c) -> tuple[float | None, float | None]:
     """(compression level, recent peak) at index i. peak_pct mode: a % of the highest ADX over the lookback
-    (so a 50 peak compresses at 20 and a 60 peak at 24); fixed mode: the fixed threshold."""
+    (at 50%: a 40 peak compresses at 20, a 60 peak at 30); fixed mode: the fixed threshold."""
     if c.compression_mode == "fixed":
         return c.compression_threshold, None
     vals = [x for x in adx[max(0, i - c.peak_lookback_candles + 1):i + 1] if x is not None]

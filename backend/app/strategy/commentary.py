@@ -244,7 +244,9 @@ def build(res: StrategyResult, bars5: list[Bar], bars15: list[Bar], cfg: Strateg
     g1 = _gate1(res, bars5, cfg, cutoff)
     lines = [g1, _gate2(res, bars15, cfg), _atr(res, cfg), _vix(res, cfg)]
 
-    compression, rules = side_rules(res.symbol, di_state, bars5, cfg, g1["status"] == WAIT, cutoff)
+    # once a breakout is in, the setup question is the 15m confirmation, not another compression
+    compression, rules = (None, []) if g1["status"] == PASS else side_rules(res.symbol, di_state, bars5, cfg,
+                                                                            g1["status"] == WAIT, cutoff)
 
     bias = OPT.get(lead)
     if res.final == "SIGNAL_READY" or res.state in ("QUALIFIED", "SIGNAL_GENERATED"):
