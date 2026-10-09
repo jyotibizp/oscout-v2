@@ -42,7 +42,7 @@ def test_commentary_cooling_adx_gives_eta_and_rules():
     assert g1["gate"] == "5m ADX" and "needs ≤ 20" in g1["text"] and g1["earliest"]
     assert "slope" in c["lines"][1]["text"] and c["lines"][1]["would_pass"] is False
     assert [v["option"] for v in c["rules"]] == ["CE", "PE"]
-    assert c["outlook"]
+    assert c["compression"]["text"] and c["outlook"] is None
 
 
 def test_commentary_compression_waiting_names_breakout_trigger():
