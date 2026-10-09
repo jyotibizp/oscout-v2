@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from app.core.clock import session_close, to_ist
 from app.indicators.wilder import WilderState, step
 from app.strategy.config import StrategyConfig
-from app.strategy.engine import PASS, WAIT, Bar, StrategyResult, _hhmm
+from app.strategy.engine import PASS, WAIT, Bar, StrategyResult, _hhmm, _level_text, compression_level
 
 OPT = {"CALL": "CE", "PUT": "PE"}
 PROJECT_CANDLES = 3
@@ -40,6 +40,13 @@ def _close_time(b: Bar, k: int = 0) -> datetime:
 
 def _close_of_day(b: Bar) -> datetime:
     return session_close(to_ist(b.ts).date())
+
+
+def _when(at: datetime, last: Bar, cutoff: datetime) -> str:
+    """'≈ 14:35 IST', '≈ 15:05 IST, after the entry cutoff' or 'after today's close' (never a time past 15:30)."""
+    if at > _close_of_day(last):
+        return f"after today's {_hm(_close_of_day(last))} close"
+    return f"≈ {_hm(at)} IST" + (", after the entry cutoff" if at > cutoff else "")
 
 
 def _adx_rate(bars: list[Bar], n: int = 5) -> float | None:
@@ -81,7 +88,8 @@ def compression_path(state: WilderState, hist: list[float], cfg: StrategyConfig,
     states = chop(state, f.adx_period, HOLD_CANDLES)
     for j, x in enumerate(states, start=1):
         seq.append(x.adx)
-        run = run + 1 if x.adx is not None and x.adx <= f.compression_threshold else 0
+        lvl = compression_level(seq, len(seq) - 1, f)[0]
+        run = run + 1 if x.adx is not None and lvl is not None and x.adx <= lvl else 0
         if run >= f.min_compression_candles:
             return j, states[:j], seq
     return None, states, seq
@@ -114,16 +122,17 @@ def side_rules(symbol: str, state: WilderState | None, bars5: list[Bar], cfg: St
     hist = [b.adx for b in bars5 if b.adx is not None]
     j, states, seq = compression_path(state, hist, cfg, compressed)
     f = cfg.five_min
+    lt = _level_text(f, *compression_level(hist, len(hist) - 1, f))
     if j is None:
-        return {"candles": None, "at": None, "text": f"Even trading sideways, 5m ADX would not hold ≤ {f.compression_threshold:g} "
+        return {"candles": None, "at": None, "text": f"Even trading sideways, 5m ADX would not hold {lt} "
                 f"for {f.min_compression_candles} candles this session: no CE or PE breakout possible yet."}, []
     if j == 0:
         comp = {"candles": 0, "at": None, "text": "5m ADX is already compressed: the next candle can break out either way."}
     else:
         at = _close_time(last, j - 1)
         comp = {"candles": j, "at": at.isoformat(),
-                "text": f"If {symbol} trades sideways, 5m ADX reaches ≤ {f.compression_threshold:g} and holds "
-                        f"{f.min_compression_candles} candles in about {j} candles ({5 * j} min, ≈ {_hm(at)} IST)."}
+                "text": f"If {symbol} trades sideways, 5m ADX reaches {lt} and holds "
+                        f"{f.min_compression_candles} candles in about {j} candles ({5 * j} min, {_when(at, last, cutoff)})."}
     rules = []
     for d in ("CALL", "PUT"):
         mv = breakout_move(states[-1], seq, cfg, d)
@@ -131,13 +140,12 @@ def side_rules(symbol: str, state: WilderState | None, bars5: list[Bar], cfg: St
             continue
         z, k = j + mv["candles"], mv["candles"]
         at = _close_time(last, z - 1)
-        late = f", after the {cfg.scanner.entry_end} cutoff" if at > cutoff else ""
         verb = "rise" if d == "CALL" else "fall"
         lead = "Then a" if j else "A"
         rules.append({"direction": d, "option": OPT[d], **mv, "minutes": 5 * k, "signal_in": z,
                       "signal_at": at.isoformat(), "after_cutoff": at > cutoff,
                       "text": f"{lead} {verb} of {mv['move_pts']} pts in {k} candle{'s' if k > 1 else ''} ({5 * k} min) "
-                              f"triggers a {OPT[d]} breakout, {z} candles from now (≈ {_hm(at)} IST{late})."})
+                              f"triggers a {OPT[d]} breakout, {z} candles from now ({_when(at, last, cutoff)})."})
     return comp, rules
 
 
@@ -150,10 +158,12 @@ def _gate1(res: StrategyResult, bars5: list[Bar], cfg: StrategyConfig, cutoff: d
                 "text": f"Breakout at {m.get('ts') and _hm(datetime.fromisoformat(m['ts']))}: ADX {m.get('adx_before')} → "
                         f"{m.get('adx_at')} after {m.get('compression_candles')} compressed candles, "
                         f"{OPT.get(m.get('direction'), '')} side."}
-    adx, thr, need = last.adx, c.compression_threshold, c.min_compression_candles
+    adx, need = last.adx, c.min_compression_candles
+    thr = m.get("compression_level")
+    lt = _level_text(c, thr, m.get("adx_peak"))
     run = m.get("compression_candles") or 0
     rate = _adx_rate(bars5)
-    if adx is None:
+    if adx is None or thr is None:
         return {"gate": "5m ADX", "status": g.status, "earliest": None, "text": g.reasons[0] if g.reasons else "No ADX"}
     if g.status == WAIT:
         prev = [b.adx for b in bars5[-c.breakout_lookback:] if b.adx is not None]
@@ -167,14 +177,14 @@ def _gate1(res: StrategyResult, bars5: list[Bar], cfg: StrategyConfig, cutoff: d
     elif rate is not None and rate < -0.05:
         to_thr = math.ceil((adx - thr) / -rate)
         k = to_thr + need
-        text = (f"ADX {adx:.1f}, needs ≤ {thr:g} ({adx - thr:.1f} to go). Falling {-rate:.1f}/candle → about "
+        text = (f"ADX {adx:.1f}, needs {lt} ({adx - thr:.1f} to go). Falling {-rate:.1f}/candle → about "
                 f"{to_thr} candles to compress, then {need} compressed candles before a breakout.")
     else:
         trend = "rising" if rate is not None and rate > 0.05 else "flat"
         return {"gate": "5m ADX", "status": "FAIL", "earliest": None,
-                "text": f"ADX {adx:.1f} is {trend} above {thr:g}: the move is still trending, no compression forming."}
+                "text": f"ADX {adx:.1f} is {trend}, above its compression level {lt}: the move is still trending, no compression forming."}
     earliest = _close_time(last, k)
-    when = f" Earliest breakout ≈ {_hm(earliest)} IST" + (" (after the entry cutoff)." if earliest > cutoff else ".")
+    when = f" Earliest breakout: {_when(earliest, last, cutoff)}."
     return {"gate": "5m ADX", "status": g.status, "earliest": earliest.isoformat(), "text": text + when}
 
 
@@ -234,7 +244,9 @@ def build(res: StrategyResult, bars5: list[Bar], bars15: list[Bar], cfg: Strateg
     g1 = _gate1(res, bars5, cfg, cutoff)
     lines = [g1, _gate2(res, bars15, cfg), _atr(res, cfg), _vix(res, cfg)]
 
-    compression, rules = side_rules(res.symbol, di_state, bars5, cfg, g1["status"] == WAIT, cutoff)
+    # once a breakout is in, the setup question is the 15m confirmation, not another compression
+    compression, rules = (None, []) if g1["status"] == PASS else side_rules(res.symbol, di_state, bars5, cfg,
+                                                                            g1["status"] == WAIT, cutoff)
 
     bias = OPT.get(lead)
     if res.final == "SIGNAL_READY" or res.state in ("QUALIFIED", "SIGNAL_GENERATED"):
@@ -258,6 +270,8 @@ def build(res: StrategyResult, bars5: list[Bar], bars15: list[Bar], cfg: Strateg
             outlook = "No compression forming yet."
         if compression:  # the shared compression step already says when a setup can form
             outlook = None
-        headline = f"No setup near: 5m ADX {last.adx:.1f} must cool to ≤ {cfg.five_min.compression_threshold:g} first."
+        g1m = res.gate1.metrics or {}
+        headline = (f"No setup near: 5m ADX {last.adx:.1f} must cool to "
+                    f"{_level_text(cfg.five_min, g1m.get('compression_level'), g1m.get('adx_peak'))} first.")
     return {"headline": headline, "bias": bias, "lines": lines, "compression": compression, "rules": rules, "outlook": outlook,
             "candle_close": _hm(_close_time(last))}

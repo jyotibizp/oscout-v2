@@ -23,6 +23,11 @@ def get_active(db: Session) -> tuple[StrategyConfiguration, StrategyConfig]:
     row = db.scalar(select(StrategyConfiguration).where(StrategyConfiguration.is_active.is_(True)))
     if row is None:
         row = save(db, StrategyConfig(), "Initial defaults")
+    elif "compression_mode" not in (row.params.get("five_min") or {}):
+        # one-time move off the fixed threshold: the old version stays as it was, a new version is appended
+        cfg = StrategyConfig.model_validate(row.params)
+        cfg.five_min.compression_mode = "peak_pct"
+        row = save(db, cfg, "Compression as % of recent 5m ADX peak")
     return row, StrategyConfig.model_validate(row.params)
 
 

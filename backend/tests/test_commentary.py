@@ -39,16 +39,26 @@ def test_commentary_cooling_adx_gives_eta_and_rules():
     c = build(res, bars5, bars15, CFG, _uptrend_state())
     assert c["bias"] == "CE" and c["headline"].startswith("No setup near")
     g1 = c["lines"][0]
-    assert g1["gate"] == "5m ADX" and "needs ≤ 20" in g1["text"] and g1["earliest"]
+    assert g1["gate"] == "5m ADX" and "needs ≤ 15.0 (50% of peak 30.0)" in g1["text"] and g1["earliest"]
     assert "slope" in c["lines"][1]["text"] and c["lines"][1]["would_pass"] is False
     assert [v["option"] for v in c["rules"]] == ["CE", "PE"]
     assert c["compression"]["text"] and c["outlook"] is None
 
 
 def test_commentary_compression_waiting_names_breakout_trigger():
-    bars5 = make_bars([25.0] * 14 + [17.0] * 10)
+    bars5 = make_bars([40.0] * 14 + [17.0] * 10)
     bars15 = make_bars([22.0] * 20, step_minutes=15)
     res = evaluate("NIFTY", bars5, bars15, bars5, VIX, CFG)
     c = build(res, bars5, bars15, CFG, None)
     assert c["lines"][0]["status"] == "WAIT" and "next 5m ADX above" in c["lines"][0]["text"]
     assert c["rules"] == [] and "Compression ready" in c["headline"]
+
+
+def test_times_past_the_session_say_after_close():
+    from app.strategy.commentary import _when
+    from tests.conftest import ist
+    last = make_bars([20.0], start=ist(2026, 10, 9, 15, 0))[-1]
+    cutoff = ist(2026, 10, 9, 14, 45)
+    assert _when(ist(2026, 10, 9, 14, 30), last, cutoff) == "≈ 14:30 IST"
+    assert _when(ist(2026, 10, 9, 15, 5), last, cutoff) == "≈ 15:05 IST, after the entry cutoff"
+    assert _when(ist(2026, 10, 9, 15, 40), last, cutoff) == "after today's 15:30 close"

@@ -6,13 +6,13 @@ CFG = StrategyConfig()
 
 
 def adx_breakout(pre=14, comp_len=10, comp=17.0, breakout=19.5):
-    """flat-ish ADX history, a compression run <= 20, then a rise above the 5-candle average."""
-    return [25.0] * pre + [comp] * comp_len + [breakout]
+    """a 40 ADX peak (compression level 50% = 20), a compression run <= 20, then a rise above the 5-candle average."""
+    return [40.0] * pre + [comp] * comp_len + [breakout]
 
 
 # ---------------- Gate 1 ----------------
 def test_gate1_compression_waiting():
-    bars = make_bars([25.0] * 14 + [17.0] * 10)
+    bars = make_bars([40.0] * 14 + [17.0] * 10)
     g = gate1(bars, CFG)
     assert g.status == "WAIT" and "compressed" in g.reasons[0]
 
@@ -36,12 +36,12 @@ def test_gate1_false_breakout_rejected_small_di_separation():
 
 
 def test_gate1_false_breakout_rejected_without_compression():
-    bars = make_bars([25.0] * 20 + [17.0] * 3 + [19.5])  # only 3 compressed candles (< 6)
+    bars = make_bars([40.0] * 20 + [17.0] * 3 + [19.5])  # only 3 compressed candles (< 6)
     assert gate1(bars, CFG).status == "FAIL"
 
 
 def test_gate1_false_breakout_rejected_small_increase():
-    bars = make_bars([25.0] * 14 + [17.0] * 10 + [17.2])  # +0.2 < min increase 0.5
+    bars = make_bars([40.0] * 14 + [17.0] * 10 + [17.2])  # +0.2 < min increase 0.5
     assert gate1(bars, CFG).status != "PASS"
 
 
@@ -136,3 +136,30 @@ def test_outside_entry_window_rejected():
     b5 = make_bars(adx, 28.0, 14.0, start=ist(2026, 10, 7, 9, 15))
     r = _scenario(bars5=b5, atr_bars=b5)
     assert r.state == "REJECTED" and "entry window" in r.reason
+
+
+# ---------------- compression relative to the ADX peak ----------------
+def test_compression_level_follows_the_peak():
+    from app.strategy.engine import compression_level
+    c = CFG.five_min
+    assert compression_level([40.0] * 10 + [30.0], 10, c)[0] == 20.0   # 50% of a 40 peak
+    assert compression_level([60.0] * 10 + [35.0], 10, c)[0] == 30.0   # 50% of a 60 peak
+
+
+def test_high_peak_compresses_above_20():
+    bars = make_bars([60.0] * 14 + [27.0] * 10)  # 27 <= 30 (50% of 60): compressed although above 20
+    g = gate1(bars, CFG)
+    assert g.status == "WAIT" and g.metrics["compression_level"] == 30.0 and "50% of peak 60.0" in g.reasons[0]
+
+
+def test_low_peak_needs_deeper_compression():
+    bars = make_bars([30.0] * 14 + [18.0] * 10)  # 18 > 15 (50% of 30): not compressed although below 20
+    assert gate1(bars, CFG).status == "FAIL"
+
+
+def test_fixed_mode_and_legacy_configs_keep_the_fixed_threshold():
+    fixed = StrategyConfig.model_validate({"five_min": {"compression_mode": "fixed"}})
+    assert gate1(make_bars([30.0] * 14 + [18.0] * 10), fixed).status == "WAIT"
+    legacy = StrategyConfig.model_validate({"five_min": {"compression_threshold": 20.0}})
+    assert legacy.five_min.compression_mode == "fixed"
+    assert StrategyConfig().five_min.compression_mode == "peak_pct"
