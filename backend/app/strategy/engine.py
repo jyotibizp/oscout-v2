@@ -228,6 +228,9 @@ def atr_filter(bars: list[Bar], direction: int, cfg: StrategyConfig) -> GateResu
          "lookback": len(w)}
     msg = (f"Move {move:.1f} pts = {ratio:.2f}× ATR {atr:.1f} over {len(w)} {c.atr_timeframe} candles "
            f"(warning {c.warning_multiple:g}×, exhausted {c.exhaustion_multiple:g}×) → {status}")
+    m["mode"] = c.mode
+    if status == "EXHAUSTED" and c.mode == "warning":
+        return GateResult(PASS, [msg + " (warning only, not blocking)"], m)
     return GateResult(FAIL if status == "EXHAUSTED" else PASS, [msg], m)
 
 

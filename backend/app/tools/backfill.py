@@ -57,17 +57,20 @@ def main():
     from app.market.ingestion import sync_symbol
     from app.market.symbols import TRADABLE, VIX
     from app.scanner.service import run_scan
+    from app.strategy import store
     from app.strategy.config import StrategyConfig
 
     Base.metadata.create_all(get_engine())
     db = SessionLocal()
-    if a.config_from:
+    if a.config_from:  # copied as stored, so the same one-time config moves apply as in the live app
         ver, params = _live_row(a.config_from, "select version, params from strategy_configurations where is_active=1")
-        cfg = StrategyConfig.model_validate(json.loads(params))
+        params = json.loads(params)
     else:
-        ver, cfg = "1.0.0", StrategyConfig()
-    db.add(StrategyConfiguration(version=ver, params=cfg.model_dump(), is_active=True, note="Backfill"))
+        ver, params = "1.0.0", StrategyConfig().model_dump()
+    db.add(StrategyConfiguration(version=ver, params=params, is_active=True, note="Backfill"))
     db.commit()
+    row, cfg = store.get_active(db)
+    ver = row.version
 
     t0 = time.time()
     provider, now = get_provider(), now_utc()

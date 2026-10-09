@@ -23,11 +23,20 @@ def get_active(db: Session) -> tuple[StrategyConfiguration, StrategyConfig]:
     row = db.scalar(select(StrategyConfiguration).where(StrategyConfiguration.is_active.is_(True)))
     if row is None:
         row = save(db, StrategyConfig(), "Initial defaults")
-    elif "compression_mode" not in (row.params.get("five_min") or {}):
-        # one-time move off the fixed threshold: the old version stays as it was, a new version is appended
-        cfg = StrategyConfig.model_validate(row.params)
-        cfg.five_min.compression_mode = "peak_pct"
-        row = save(db, cfg, "Compression as % of recent 5m ADX peak")
+    else:
+        # one-time moves for configurations saved before a rule change: the old version stays as it was,
+        # one new version is appended with the new behaviour
+        five, atr = row.params.get("five_min") or {}, row.params.get("atr") or {}
+        cfg, notes = StrategyConfig.model_validate(row.params), []
+        if "compression_mode" not in five:
+            cfg.five_min.compression_mode = "peak_pct"
+            notes.append("Compression as % of recent 5m ADX peak")
+        if "mode" not in atr:  # 60-day replay, 9 Oct 2026
+            cfg.atr.mode = "warning"
+            cfg.fifteen_min.min_adx_slope, cfg.fifteen_min.min_di_consistency, cfg.fifteen_min.max_adx = -1.0, 0.3, 60.0
+            notes.append("ATR as warning; 15m slope > -1, DI lean 30%, 15m ADX cap 60")
+        if notes:
+            row = save(db, cfg, "; ".join(notes))
     return row, StrategyConfig.model_validate(row.params)
 
 

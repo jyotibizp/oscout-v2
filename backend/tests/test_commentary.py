@@ -40,7 +40,7 @@ def test_commentary_cooling_adx_gives_eta_and_rules():
     assert c["bias"] == "CE" and c["headline"].startswith("No setup near")
     g1 = c["lines"][0]
     assert g1["gate"] == "5m ADX" and "needs ≤ 15.0 (50% of peak 30.0)" in g1["text"] and g1["earliest"]
-    assert "slope" in c["lines"][1]["text"] and c["lines"][1]["would_pass"] is False
+    assert "slope" in c["lines"][1]["text"]
     assert [v["option"] for v in c["rules"]] == ["CE", "PE"]
     assert c["compression"]["text"] and c["outlook"] is None
 

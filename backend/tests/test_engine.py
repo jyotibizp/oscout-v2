@@ -89,8 +89,15 @@ def test_atr_normal_warning_exhausted():
     warn = make_bars([20.0] * 12, close=[100.0] * 11 + [128.0], atr=10.0)    # (128 - 99) / 10 = 2.9
     assert atr_filter(warn, 1, CFG).metrics["atr_status"] == "WARNING"
     exh = make_bars([20.0] * 12, close=[100.0] * 11 + [140.0], atr=10.0)
-    r = atr_filter(exh, 1, CFG)
-    assert r.metrics["atr_status"] == "EXHAUSTED" and r.status == "FAIL"
+    r = atr_filter(exh, 1, CFG)  # default: warning mode, shown but never blocking
+    assert r.metrics["atr_status"] == "EXHAUSTED" and r.status == "PASS" and "warning only" in r.reasons[0]
+    blocking = StrategyConfig.model_validate({"atr": {"mode": "filter"}})
+    assert atr_filter(exh, 1, blocking).status == "FAIL"
+
+
+def test_legacy_atr_config_keeps_blocking():
+    legacy = StrategyConfig.model_validate({"atr": {"exhaustion_multiple": 3.5}})
+    assert legacy.atr.mode == "filter" and StrategyConfig().atr.mode == "warning"
 
 
 # ---------------- VIX ----------------
