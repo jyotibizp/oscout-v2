@@ -109,7 +109,7 @@ def run_scan(db: Session, provider, trigger: str = "MANUAL", now: datetime | Non
     errors = 0
     for sym in TRADABLE:
         try:
-            res, bars5 = evaluate_symbol(db, sym, cfg, now)
+            res, bars5 = evaluate_symbol(db, sym, cfg, now, until=candle)  # as of the scanned candle
             if res is None:
                 raise RuntimeError(f"No {sym} 5m data")
             stale = res.state == "REJECTED" and res.gate1.status == "FAIL" and "DATA" in res.reason

@@ -25,7 +25,7 @@ function steps(r: ScanResult): Step[] {
     { k: "15m trend", s: d?.gate2?.status === "PASS" ? "PASS" : d?.gate2?.status === "FAIL" ? "FAILED" : "WAIT",
       v: `ADX ${n(r.adx15)} · slope ${signed(d?.gate2?.metrics?.slope)}` },
     { k: "ATR", s: atrStatus === "EXHAUSTED" ? "EXHAUSTED" : atrStatus === "WARNING" ? "WAIT" : atrStatus ? "PASS" : "WAIT",
-      v: atrStatus ? `${n(d?.atr?.metrics?.ratio, 2)}× ${atrStatus.toLowerCase()}` : "—" },
+      v: atrStatus ? `${n(d?.atr?.metrics?.ratio, 2)}× ${atrStatus.toLowerCase()}${d?.atr?.metrics?.mode === "warning" && atrStatus === "EXHAUSTED" ? " · warning only" : ""}` : "—" },
     { k: "VIX", s: d?.vix?.status === "PASS" ? "PASS" : d?.vix?.status === "FAIL" ? "FAILED" : "WAIT",
       v: `${n(r.vix, 2)} (${signed(r.vix_change_pct)}%)` },
   ];

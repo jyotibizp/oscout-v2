@@ -215,8 +215,12 @@ def _atr(res: StrategyResult, cfg: StrategyConfig) -> dict:
     if atr is None or ratio is None:
         return {"gate": "ATR", "status": res.atr.status, "text": res.atr.reasons[0] if res.atr.reasons else "ATR unavailable"}
     room = c.exhaustion_multiple * atr - move
-    tail = (f"{room:.0f} pts of room before exhausted ({c.exhaustion_multiple:g}×)." if room > 0
-            else f"exhausted; needs to cool below {c.exhaustion_multiple:g}×.")
+    if c.mode == "warning":
+        tail = (f"{room:.0f} pts before exhausted ({c.exhaustion_multiple:g}×); warning only." if room > 0
+                else "exhausted: a late, stretched entry (warning only, does not block).")
+    else:
+        tail = (f"{room:.0f} pts of room before exhausted ({c.exhaustion_multiple:g}×)." if room > 0
+                else f"exhausted; needs to cool below {c.exhaustion_multiple:g}×.")
     return {"gate": "ATR", "status": res.atr.status,
             "text": f"Move {move:.0f} pts = {ratio:.2f}× ATR {atr:.1f} ({m.get('atr_status')}); {tail}"}
 

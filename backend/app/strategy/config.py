@@ -55,18 +55,21 @@ class FifteenMinSettings(_Group):
     lookback_candles: int = Field(15, ge=5, le=100, title="Lookback Candles",
                                   description="Number of 15m candles analysed for the pattern.")
     slope_candles: int = Field(2, ge=1, le=10, title="Slope Candles", description="ADX slope = ADX now − ADX N candles ago.")
-    min_adx_slope: float = Field(0.0, ge=-10, le=10, title="Min ADX Slope",
-                                 description="15m ADX slope must be above this (0 = ADX rising).")
+    min_adx_slope: float = Field(-1.0, ge=-10, le=10, title="Min ADX Slope",
+                                 description="15m ADX slope must be above this (0 = ADX rising; -1 also lets a flat or slightly easing 15m ADX through).")
     min_adx: float = Field(0.0, ge=0, le=60, title="Min 15m ADX", description="15m ADX must be at least this (0 = off).")
-    max_adx: float = Field(45.0, ge=10, le=100, title="Max 15m ADX",
+    max_adx: float = Field(60.0, ge=10, le=100, title="Max 15m ADX",
                            description="Above this the 15m trend is considered already exhausted.")
     require_di_agreement: bool = Field(True, title="DI Must Agree",
                                        description="15m leading DI must point the same way as the 5m breakout.")
-    min_di_consistency: float = Field(0.5, ge=0, le=1, title="DI Consistency",
+    min_di_consistency: float = Field(0.3, ge=0, le=1, title="DI Consistency",
                                       description="Share of lookback candles where the same DI leads (0.5 = half).")
 
 
 class AtrSettings(_Group):
+    mode: Literal["warning", "filter"] = Field("warning", title="ATR Mode",
+                                               description="warning: ATR status is shown but never blocks a signal. "
+                                                           "filter: EXHAUSTED blocks new entries.")
     atr_period: int = Field(14, ge=5, le=50, title="ATR Period", description="Wilder ATR period.")
     atr_timeframe: Literal["5m", "15m"] = Field("5m", title="ATR Timeframe", description="Timeframe used for ATR.")
     lookback_candles: int = Field(12, ge=2, le=100, title="Move Lookback",
@@ -80,6 +83,15 @@ class AtrSettings(_Group):
         if self.warning_multiple > self.exhaustion_multiple:
             raise ValueError("ATR warning multiple must not exceed the exhaustion multiple")
         return self
+
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_mode(cls, data):
+        # configurations saved before ATR warning mode existed used ATR as a blocking filter
+        if isinstance(data, dict) and "exhaustion_multiple" in data and "mode" not in data:
+            data = {**data, "mode": "filter"}
+        return data
 
 
 class VixSettings(_Group):

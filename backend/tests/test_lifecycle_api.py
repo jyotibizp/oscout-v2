@@ -105,10 +105,27 @@ def test_legacy_fixed_config_moves_to_peak_mode_as_a_new_version(db):
     params = StrategyConfig().model_dump()
     for k in ("compression_mode", "compression_peak_pct", "peak_lookback_candles"):
         params["five_min"].pop(k)
+    params["atr"].pop("mode")
     db.add(StrategyConfiguration(version="1.0.0", params=params, is_active=True, note="old"))
     db.commit()
     row, cfg = store.get_active(db)
-    assert row.version == "1.0.1" and cfg.five_min.compression_mode == "peak_pct"
+    assert row.version == "1.0.1" and cfg.five_min.compression_mode == "peak_pct" and cfg.atr.mode == "warning"
+    assert cfg.fifteen_min.min_adx_slope == -1.0
     old = db.query(StrategyConfiguration).filter_by(version="1.0.0").one()
     assert not old.is_active and StrategyConfig.model_validate(old.params).five_min.compression_mode == "fixed"
     assert store.get_active(db)[0].version == "1.0.1"  # migrates once
+
+
+def test_v101_style_config_moves_to_atr_warning_as_a_new_version(db):
+    from app.db.models import StrategyConfiguration
+    from app.strategy import store
+    from app.strategy.config import StrategyConfig
+    old = StrategyConfig.model_validate({"fifteen_min": {"min_adx_slope": 0.0, "min_di_consistency": 0.5, "max_adx": 45.0}})
+    params = old.model_dump()
+    params["atr"].pop("mode")
+    db.add(StrategyConfiguration(version="1.0.1", params=params, is_active=True, note="peak rule"))
+    db.commit()
+    row, cfg = store.get_active(db)
+    assert row.version == "1.0.2" and cfg.atr.mode == "warning"
+    assert (cfg.fifteen_min.min_adx_slope, cfg.fifteen_min.min_di_consistency, cfg.fifteen_min.max_adx) == (-1.0, 0.3, 60.0)
+    assert cfg.five_min.compression_peak_pct == 50.0
