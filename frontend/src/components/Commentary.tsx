@@ -1,7 +1,7 @@
 import type { Commentary as C } from "../api/client";
 import { Badge } from "./ui";
 
-/** Plain-language read-out stored with each scan: gate distances, earliest setup time and DI flip levels. */
+/** Plain-language read-out stored with each scan: gate distances, earliest setup time and one CE / PE rule. */
 export function Commentary({ c }: { c?: C | null }) {
   if (!c) return null;
   return (
@@ -17,7 +17,8 @@ export function Commentary({ c }: { c?: C | null }) {
           </li>
         ))}
       </ul>
-      {c.levels.map((v) => <p key={v.direction} className="text-xs text-ink-soft"><span className="text-ink">Watch:</span> {v.text}</p>)}
+      {c.compression && <p className="text-xs text-ink-soft"><span className="text-ink font-medium">Setup:</span> {c.compression.text}</p>}
+      {c.rules.map((v) => <p key={v.direction} className="text-xs text-ink-soft"><span className="text-ink font-medium">{v.option}:</span> {v.text}</p>)}
       {c.outlook && <p className="text-xs text-ink">{c.outlook}</p>}
     </div>
   );

@@ -27,8 +27,8 @@ const qs = (p: Record<string, string | number | undefined | null>) => {
 export type GateStatus = "PASS" | "FAIL" | "WAIT" | "SKIP";
 export interface Gate { status: GateStatus; reasons: string[]; metrics: Record<string, any> }
 export interface CommentaryLine { gate: string; status: GateStatus; text: string; earliest?: string | null; would_pass?: boolean }
-export interface CommentaryLevel { direction: "CALL" | "PUT"; option: "CE" | "PE"; price: number; pace: number; candles: number; pdi: number; mdi: number; adx: number | null; text: string }
-export interface Commentary { headline: string; bias: "CE" | "PE" | null; lines: CommentaryLine[]; levels: CommentaryLevel[]; outlook: string | null; candle_close?: string }
+export interface CommentaryRule { direction: "CALL" | "PUT"; option: "CE" | "PE"; move_pts: number; candles: number; minutes: number; signal_in: number; signal_at: string; after_cutoff: boolean; di_gap: number; text: string }
+export interface Commentary { headline: string; bias: "CE" | "PE" | null; lines: CommentaryLine[]; compression: { candles: number | null; at: string | null; text: string } | null; rules: CommentaryRule[]; outlook: string | null; candle_close?: string }
 export interface ScanResult {
   id: number; scan_run_id: number; symbol: string; candle_ts: string | null; created_at: string | null;
   adx5: number | null; pdi5: number | null; mdi5: number | null; adx15: number | null; pdi15: number | null; mdi15: number | null;

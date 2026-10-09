@@ -1,11 +1,12 @@
 """Plain-language scan commentary — pure functions over the engine's result (no database).
 
-After every scan each symbol gets a short read-out: where each gate stands, how far the failing ones are
-from flipping, the earliest a breakout could form, and the 5m price levels that would flip the DIs to the
-other side (CE ↔ PE) within the next few candles. It explains the scan; it never changes a decision.
+After every scan each symbol gets a short read-out: where each gate stands and how far the failing ones are
+from flipping, then the same rule for both sides. One neutral step first (if price trades sideways, when does
+5m ADX finish compressing?), then "a rise of U pts in V candles → CE breakout in W candles" and "a fall of X
+pts in Y candles → PE breakout in Z candles". It explains the scan; it never changes a decision.
 
-DI projections run the exact Wilder recurrence forward on synthetic candles that open at the previous close,
-move a fixed number of points and carry small wicks. They are estimates: real highs/lows shift the levels.
+Projections run the exact Wilder recurrence forward on synthetic candles that open at the previous close,
+move a fixed number of points and carry small wicks. They are estimates: real highs/lows shift the numbers.
 """
 import math
 from datetime import datetime, timedelta
@@ -19,6 +20,7 @@ OPT = {"CALL": "CE", "PUT": "PE"}
 PROJECT_CANDLES = 3
 WICK_ATR = 0.15          # synthetic wick as a fraction of ATR
 PACE_STEPS = 60          # pace search: 0.05×ATR … 3×ATR per candle
+HOLD_CANDLES = 75        # sideways candles simulated for compression (one session)
 
 
 def _hm(dt: datetime) -> str:
@@ -57,20 +59,86 @@ def project_di(state: WilderState, period: int, direction: str, pace: float, can
     return out
 
 
-def flip_level(state: WilderState | None, period: int, direction: str, separation: float,
-               candles: int = PROJECT_CANDLES) -> dict | None:
-    """Slowest steady move that makes `direction`'s DI lead by >= separation within `candles` candles."""
-    if state is None or not state.atr or state.pdi is None or state.mdi is None:
-        return None
+def chop(state: WilderState, period: int, candles: int) -> list[WilderState]:
+    """Neutral sideways market: candles of ~1 ATR range whose highs/lows step up then back down by 0.3 ATR in
+    turn, so +DM and −DM appear equally and the DIs converge (no net move, no side favoured)."""
+    s, out = state, []
+    r, e = state.atr or 0, 0.3 * (state.atr or 0)
+    lo = state.close - r / 2
+    for i in range(candles):
+        low = lo + (e if i % 2 == 0 else 0.0)
+        s = step(s, low + r, low, low + r / 2, period)
+        out.append(s)
+    return out
+
+
+def compression_path(state: WilderState, hist: list[float], cfg: StrategyConfig, compressed: bool):
+    """(candles from now until compression is complete, states, adx sequence) assuming sideways trade."""
+    f = cfg.five_min
+    if compressed:
+        return 0, [state], list(hist)
+    run, seq = 0, list(hist)
+    states = chop(state, f.adx_period, HOLD_CANDLES)
+    for j, x in enumerate(states, start=1):
+        seq.append(x.adx)
+        run = run + 1 if x.adx is not None and x.adx <= f.compression_threshold else 0
+        if run >= f.min_compression_candles:
+            return j, states[:j], seq
+    return None, states, seq
+
+
+def breakout_move(start: WilderState, seq: list[float], cfg: StrategyConfig, direction: str) -> dict | None:
+    """Smallest steady move over 1-3 candles from a compressed state that makes a breakout on this side:
+    ADX above its previous-lookback average and up by min_adx_increase, this side's DI ahead by the separation."""
+    f = cfg.five_min
     for i in range(1, PACE_STEPS + 1):
-        pace = state.atr * 0.05 * i
-        for k, s in enumerate(project_di(state, period, direction, pace, candles), start=1):
-            gap = (s.pdi - s.mdi) if direction == "CALL" else (s.mdi - s.pdi)
-            if gap >= separation:
-                return {"direction": direction, "option": OPT[direction], "pace": round(pace, 1), "candles": k,
-                        "price": round(s.close, 2), "pdi": round(s.pdi, 1), "mdi": round(s.mdi, 1),
-                        "adx": round(s.adx, 1) if s.adx is not None else None}
+        pace = start.atr * 0.05 * i
+        path = project_di(start, f.adx_period, direction, pace)
+        for k, p in enumerate(path, start=1):
+            gap = (p.pdi - p.mdi) if direction == "CALL" else (p.mdi - p.pdi)
+            full = seq + [x.adx for x in path[:k]]
+            prev = full[-1 - f.breakout_lookback:-1]
+            if p.adx is None or None in prev or gap < f.min_di_separation:
+                continue
+            if full[-1] > sum(prev) / len(prev) and full[-1] - full[-2] >= f.min_adx_increase:
+                return {"move_pts": round(pace * k), "candles": k, "di_gap": round(gap, 1)}
     return None
+
+
+def side_rules(symbol: str, state: WilderState | None, bars5: list[Bar], cfg: StrategyConfig, compressed: bool,
+               cutoff: datetime) -> tuple[dict | None, list[dict]]:
+    """One compression step shared by both sides, then the same breakout rule up (CE) and down (PE)."""
+    if state is None or not state.atr or state.pdi is None or state.mdi is None or not bars5:
+        return None, []
+    last = bars5[-1]
+    hist = [b.adx for b in bars5 if b.adx is not None]
+    j, states, seq = compression_path(state, hist, cfg, compressed)
+    f = cfg.five_min
+    if j is None:
+        return {"candles": None, "at": None, "text": f"Even trading sideways, 5m ADX would not hold ≤ {f.compression_threshold:g} "
+                f"for {f.min_compression_candles} candles this session: no CE or PE breakout possible yet."}, []
+    if j == 0:
+        comp = {"candles": 0, "at": None, "text": "5m ADX is already compressed: the next candle can break out either way."}
+    else:
+        at = _close_time(last, j - 1)
+        comp = {"candles": j, "at": at.isoformat(),
+                "text": f"If {symbol} trades sideways, 5m ADX reaches ≤ {f.compression_threshold:g} and holds "
+                        f"{f.min_compression_candles} candles in about {j} candles ({5 * j} min, ≈ {_hm(at)} IST)."}
+    rules = []
+    for d in ("CALL", "PUT"):
+        mv = breakout_move(states[-1], seq, cfg, d)
+        if mv is None:
+            continue
+        z, k = j + mv["candles"], mv["candles"]
+        at = _close_time(last, z - 1)
+        late = f", after the {cfg.scanner.entry_end} cutoff" if at > cutoff else ""
+        verb = "rise" if d == "CALL" else "fall"
+        lead = "Then a" if j else "A"
+        rules.append({"direction": d, "option": OPT[d], **mv, "minutes": 5 * k, "signal_in": z,
+                      "signal_at": at.isoformat(), "after_cutoff": at > cutoff,
+                      "text": f"{lead} {verb} of {mv['move_pts']} pts in {k} candle{'s' if k > 1 else ''} ({5 * k} min) "
+                              f"triggers a {OPT[d]} breakout, {z} candles from now (≈ {_hm(at)} IST{late})."})
+    return comp, rules
 
 
 def _gate1(res: StrategyResult, bars5: list[Bar], cfg: StrategyConfig, cutoff: datetime) -> dict:
@@ -158,7 +226,7 @@ def build(res: StrategyResult, bars5: list[Bar], bars15: list[Bar], cfg: Strateg
           di_state: WilderState | None = None) -> dict:
     """Commentary for one symbol's scan. `di_state` is the latest 5m Wilder state (for DI projections)."""
     if not bars5 or res.gate1.status == "FAIL" and "DATA" in (res.reason or ""):
-        return {"headline": res.reason or "No data", "bias": None, "lines": [], "levels": [], "outlook": None}
+        return {"headline": res.reason or "No data", "bias": None, "lines": [], "compression": None, "rules": [], "outlook": None}
     last = bars5[-1]
     cutoff = datetime.combine(to_ist(last.ts).date(), _hhmm(cfg.scanner.entry_end), tzinfo=to_ist(last.ts).tzinfo)
     lead = _lead(last.pdi, last.mdi)
@@ -166,21 +234,9 @@ def build(res: StrategyResult, bars5: list[Bar], bars15: list[Bar], cfg: Strateg
     g1 = _gate1(res, bars5, cfg, cutoff)
     lines = [g1, _gate2(res, bars15, cfg), _atr(res, cfg), _vix(res, cfg)]
 
-    levels = []
-    for d in ("CALL", "PUT"):
-        if d == lead and gap >= cfg.five_min.min_di_separation:
-            continue
-        lv = flip_level(di_state, cfg.five_min.adx_period, d, cfg.five_min.min_di_separation)
-        if lv:
-            arrow = "≥" if d == "CALL" else "≤"
-            lv["text"] = (f"{OPT[d]} build-up: 5m close {arrow} {lv['price']:,.2f} within {lv['candles']} candle"
-                          f"{'s' if lv['candles'] > 1 else ''} ({lv['pace']:g} pts/candle) puts "
-                          f"{'+DI' if d == 'CALL' else '−DI'} ahead by {cfg.five_min.min_di_separation:g}+ "
-                          f"(+DI {lv['pdi']} / −DI {lv['mdi']}, ADX {lv['adx']}).")
-            levels.append(lv)
+    compression, rules = side_rules(res.symbol, di_state, bars5, cfg, g1["status"] == WAIT, cutoff)
 
     bias = OPT.get(lead)
-    side = f"{bias} side (+DI {last.pdi:.1f} / −DI {last.mdi:.1f})" if bias else "no DI lead"
     if res.final == "SIGNAL_READY" or res.state in ("QUALIFIED", "SIGNAL_GENERATED"):
         headline, outlook = f"{OPT.get(res.direction, '')} signal qualified.", "All gates passed."
     elif res.state in ("BREAKOUT_DETECTED", "WAITING_CONFIRMATION"):
@@ -189,7 +245,7 @@ def build(res: StrategyResult, bars5: list[Bar], bars15: list[Bar], cfg: Strateg
     elif res.state == "REJECTED":
         headline, outlook = f"Setup rejected: {res.reason}", None
     elif g1["status"] == "WAIT":
-        headline, outlook = f"Compression ready, {side}; a breakout can come on any candle.", g1["text"]
+        headline, outlook = "Compression ready: a breakout can come on any candle.", g1["text"]
     else:
         earliest = g1.get("earliest")
         if earliest and datetime.fromisoformat(earliest) <= cutoff:
@@ -200,6 +256,8 @@ def build(res: StrategyResult, bars5: list[Bar], bars15: list[Bar], cfg: Strateg
             outlook = f"Earliest setup ≈ {_hm(datetime.fromisoformat(earliest))} IST, after the {cfg.scanner.entry_end} cutoff: unlikely today."
         else:
             outlook = "No compression forming yet."
-        headline = f"No setup near, {side}."
-    return {"headline": headline, "bias": bias, "lines": lines, "levels": levels, "outlook": outlook,
+        if compression:  # the shared compression step already says when a setup can form
+            outlook = None
+        headline = f"No setup near: 5m ADX {last.adx:.1f} must cool to ≤ {cfg.five_min.compression_threshold:g} first."
+    return {"headline": headline, "bias": bias, "lines": lines, "compression": compression, "rules": rules, "outlook": outlook,
             "candle_close": _hm(_close_time(last))}
