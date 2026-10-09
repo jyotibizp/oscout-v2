@@ -18,6 +18,7 @@ def scan_result(r: ScanResult, full: bool = False) -> dict:
         det = r.details or {}
         d["reason"] = det.get("reason")
         d["entry_price"] = det.get("entry_price")
+        d["commentary"] = det.get("commentary")
         d["gates"] = {k: {"status": (det.get(k) or {}).get("status"), "reasons": (det.get(k) or {}).get("reasons", [])[:4]}
                       for k in ("gate1", "gate2", "atr", "vix")}
     return d

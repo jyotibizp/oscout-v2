@@ -57,7 +57,10 @@ def test_api_scan_config_and_health(db):
     c = TestClient(app)
     r = c.post("/api/scans/run")
     assert r.status_code == 200 and {x["symbol"] for x in r.json()["results"]} == {"NIFTY", "SENSEX"}
-    assert c.get("/api/scans/latest").json()["symbols"]["NIFTY"]["gate1"] in ("PASS", "FAIL", "WAIT")
+    latest = c.get("/api/scans/latest").json()["symbols"]["NIFTY"]
+    assert latest["gate1"] in ("PASS", "FAIL", "WAIT")
+    assert latest["details"]["commentary"]["headline"]
+    assert c.get("/api/scans/history").json()["items"][0]["commentary"]["headline"]
     cfg = c.get("/api/config").json()
     assert cfg["version"] == "1.0.0" and cfg["schema"][0]["key"] == "five_min"
     params = cfg["params"]

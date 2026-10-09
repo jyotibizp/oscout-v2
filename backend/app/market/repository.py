@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import to_ist
 from app.db.models import IndicatorValue, MarketCandle
+from app.indicators.wilder import WilderState
 from app.market.symbols import VIX
 from app.strategy.engine import Bar, VixSnapshot
 
@@ -30,6 +31,18 @@ def load_bars(db: Session, symbol: str, tf: str, adx_period: int, atr_period: in
         out.append(Bar(ts=_aware(r.ts), open=r.open, high=r.high, low=r.low, close=r.close,
                        adx=r.adx, pdi=r.pdi, mdi=r.mdi, atr=r.atr))
     return out
+
+
+def wilder_state(db: Session, symbol: str, tf: str, period: int, at: datetime) -> WilderState | None:
+    """Stored Wilder state of the latest candle at or before `at` (for forward projections)."""
+    r = db.scalars(select(IndicatorValue).where(IndicatorValue.symbol == symbol, IndicatorValue.timeframe == tf,
+                                                IndicatorValue.period == period, IndicatorValue.ts <= at)
+                   .order_by(IndicatorValue.ts.desc()).limit(1)).first()
+    if r is None:
+        return None
+    return WilderState(n=r.n, high=r.high, low=r.low, close=r.close, atr=r.atr, pdm=r.pdm, mdm=r.mdm, pdi=r.pdi,
+                       mdi=r.mdi, dx=r.dx, adx=r.adx, tr_sum=r.tr_sum, pdm_sum=r.pdm_sum, mdm_sum=r.mdm_sum,
+                       dx_sum=r.dx_sum)
 
 
 def _aware(ts: datetime) -> datetime:

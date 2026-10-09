@@ -66,6 +66,7 @@ class StrategyResult:
     atr_value: float | None = None
     breakout: dict | None = None
     snapshot: dict = field(default_factory=dict)
+    commentary: dict | None = None  # plain-language read-out (app.strategy.commentary), explanatory only
 
     def to_dict(self) -> dict:
         d = asdict(self)

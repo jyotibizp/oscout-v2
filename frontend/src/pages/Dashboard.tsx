@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, ScanResult } from "../api/client";
 import { Sparkline } from "../components/Charts";
+import { Commentary } from "../components/Commentary";
 import { SignalDetailDrawer } from "../components/Details";
 import { Pipeline } from "../components/Pipeline";
 import { SignalCard } from "../components/SignalCard";
@@ -62,6 +63,7 @@ function SymbolPanel({ sym, r }: { sym: string; r: ScanResult | null }) {
         </tbody>
       </table>
       <p className="mt-3 text-xs text-ink-soft leading-relaxed">{r.final_result === "SIGNAL" ? r.details?.reason : r.rejection_reason ?? r.details?.reason}</p>
+      {r.details?.commentary && <div className="mt-3 pt-3 border-t border-line/50"><Commentary c={r.details.commentary} /></div>}
     </div>
   );
 }

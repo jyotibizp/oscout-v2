@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import type { ScanResult, Setup } from "../api/client";
+import { Commentary } from "./Commentary";
 import { Pipeline } from "./Pipeline";
 import { SignalCard } from "./SignalCard";
 import { Badge } from "./ui";
@@ -51,4 +52,21 @@ test("signal card explains the signal", () => {
   expect(screen.getByText("CALL BUY")).toBeInTheDocument();
   expect(screen.getByText(/v1.0.3/)).toBeInTheDocument();
   expect(screen.getByText("CALL BUY: breakout")).toBeInTheDocument();
+});
+
+test("commentary shows the headline, each gate and the side rule", () => {
+  render(<Commentary c={{
+    headline: "No setup near, CE side (+DI 24.9 / −DI 16.0).", bias: "CE", outlook: "Setup possible from about 14:35 IST.",
+    lines: [{ gate: "5m ADX", status: "FAIL", text: "ADX 22.9, needs ≤ 20 (2.9 to go)." }],
+    compression: { candles: 17, at: null, text: "If NIFTY trades sideways, 5m ADX reaches ≤ 20 and holds 6 candles in about 17 candles." },
+    rules: [
+      { direction: "CALL", option: "CE", move_pts: 17, candles: 3, minutes: 15, signal_in: 20, signal_at: "", after_cutoff: false, di_gap: 3.1, text: "Then a rise of 17 pts in 3 candles (15 min) triggers a CE breakout." },
+      { direction: "PUT", option: "PE", move_pts: 50, candles: 3, minutes: 15, signal_in: 20, signal_at: "", after_cutoff: false, di_gap: 3.2, text: "Then a fall of 50 pts in 3 candles (15 min) triggers a PE breakout." },
+    ],
+  }} />);
+  expect(screen.getByText(/No setup near/)).toBeInTheDocument();
+  expect(screen.getByText(/needs ≤ 20/)).toBeInTheDocument();
+  expect(screen.getByText(/trades sideways/)).toBeInTheDocument();
+  expect(screen.getByText(/rise of 17 pts/)).toBeInTheDocument();
+  expect(screen.getByText(/fall of 50 pts/)).toBeInTheDocument();
 });
