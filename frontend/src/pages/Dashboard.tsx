@@ -143,18 +143,21 @@ function CommentaryPanel({ syms, active }: { syms: Record<string, ScanResult | n
                       </li>
                     ))}
                   </ul>
-                  {sig ? (
-                    <p className="text-sm text-ink-soft">The next-setup rules are paused until this signal exits.</p>
-                  ) : (c.compression || c.rules.length > 0 || c.outlook) && (
+                  {(c.compression || c.rules.length > 0 || c.outlook) && (
                     <div className="space-y-1.5 border-t border-line/60 pt-3">
-                      <div className="text-xs uppercase tracking-widest text-ink-faint">What happens next</div>
-                      {c.compression && <p className="text-sm text-ink-soft">{c.compression.text}</p>}
-                      {c.rules.map((x) => (
-                        <p key={x.direction} className="text-sm text-ink-soft">
-                          <span className={`font-semibold ${x.direction === "CALL" ? "text-good" : "text-bad"}`}>{x.option}</span> {x.text}
-                        </p>
-                      ))}
-                      {c.outlook && <p className="text-sm text-ink-soft">{c.outlook}</p>}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs uppercase tracking-widest text-ink-faint">What happens next</span>
+                        {sig && <Badge s="PAUSED" label="Paused · signal active" />}
+                      </div>
+                      <div className={`space-y-1.5 ${sig ? "opacity-50" : ""}`} title={sig ? "No new entry on this index until the active signal exits" : undefined}>
+                        {c.compression && <p className="text-sm text-ink-soft">{c.compression.text}</p>}
+                        {c.rules.map((x) => (
+                          <p key={x.direction} className="text-sm text-ink-soft">
+                            <span className={`font-semibold ${x.direction === "CALL" ? "text-good" : "text-bad"}`}>{x.option}</span> {x.text}
+                          </p>
+                        ))}
+                        {c.outlook && <p className="text-sm text-ink-soft">{c.outlook}</p>}
+                      </div>
                     </div>
                   )}
                 </div>
