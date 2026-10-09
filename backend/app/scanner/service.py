@@ -14,10 +14,11 @@ from app.core.clock import is_market_open, latest_completed_start, now_utc
 from app.db.models import ScanResult, ScanRun, SignalSetup, SystemEvent
 from app.market import health
 from app.market.ingestion import latest_ts, sync_symbol
-from app.market.repository import load_bars, vix_snapshot
+from app.market.repository import load_bars, vix_snapshot, wilder_state
 from app.market.symbols import TRADABLE, VIX
 from app.signals.lifecycle import OPEN, apply_result, update_open_signals
 from app.strategy import store
+from app.strategy import commentary
 from app.strategy.config import StrategyConfig
 from app.strategy.engine import evaluate
 
@@ -77,7 +78,13 @@ def evaluate_symbol(db: Session, symbol: str, cfg: StrategyConfig, now: datetime
     atr_bars = bars5 if a.atr_timeframe == "5m" else bars15
     vix = vix_snapshot(db, now, cfg.vix.max_age_minutes, is_market_open(now))  # None -> "VIX DATA UNAVAILABLE"
     stale = _stale(db, symbol, now, cfg)
-    return evaluate(symbol, bars5, bars15, atr_bars, vix, cfg, stale or None), bars5
+    res = evaluate(symbol, bars5, bars15, atr_bars, vix, cfg, stale or None)
+    try:
+        res.commentary = commentary.build(res, bars5, bars15, cfg,
+                                          wilder_state(db, symbol, "5m", f.adx_period, bars5[-1].ts))
+    except Exception:  # noqa: BLE001 - commentary is explanatory; it must never fail a scan
+        log.exception("commentary failed", extra={"ctx": {"symbol": symbol}})
+    return res, bars5
 
 
 def run_scan(db: Session, provider, trigger: str = "MANUAL", now: datetime | None = None,

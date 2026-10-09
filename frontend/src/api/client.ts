@@ -26,6 +26,9 @@ const qs = (p: Record<string, string | number | undefined | null>) => {
 
 export type GateStatus = "PASS" | "FAIL" | "WAIT" | "SKIP";
 export interface Gate { status: GateStatus; reasons: string[]; metrics: Record<string, any> }
+export interface CommentaryLine { gate: string; status: GateStatus; text: string; earliest?: string | null; would_pass?: boolean }
+export interface CommentaryLevel { direction: "CALL" | "PUT"; option: "CE" | "PE"; price: number; pace: number; candles: number; pdi: number; mdi: number; adx: number | null; text: string }
+export interface Commentary { headline: string; bias: "CE" | "PE" | null; lines: CommentaryLine[]; levels: CommentaryLevel[]; outlook: string | null; candle_close?: string }
 export interface ScanResult {
   id: number; scan_run_id: number; symbol: string; candle_ts: string | null; created_at: string | null;
   adx5: number | null; pdi5: number | null; mdi5: number | null; adx15: number | null; pdi15: number | null; mdi15: number | null;
@@ -34,10 +37,11 @@ export interface ScanResult {
   final_result: "SIGNAL" | "NO_SIGNAL"; state: string; direction: "CALL" | "PUT" | null; rejection_reason: string | null;
   config_version: string; setup_id: number | null; reason?: string; entry_price?: number | null;
   gates?: Record<string, { status: GateStatus; reasons: string[] }>;
+  commentary?: Commentary | null;
   details?: {
     gate1: Gate; gate2: Gate; atr: Gate; vix: Gate; reason: string; state: string; effective_state: string; note: string | null;
     entry_price: number | null; stop_price: number | null; target_price: number | null; atr_value: number | null;
-    breakout: Record<string, any> | null; snapshot: Record<string, any>;
+    breakout: Record<string, any> | null; snapshot: Record<string, any>; commentary?: Commentary | null;
   };
 }
 export interface ScanRun { id: number; trigger: string; candle_ts: string | null; started_at: string; finished_at: string | null; status: string; config_version: string; summary: any }

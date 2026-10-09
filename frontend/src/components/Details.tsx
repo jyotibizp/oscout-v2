@@ -1,6 +1,7 @@
 import { api, ScanResult, Setup } from "../api/client";
 import { dateTimeIST, n, signed } from "../lib/format";
 import { useApi } from "../lib/hooks";
+import { Commentary } from "./Commentary";
 import { Pipeline } from "./Pipeline";
 import { Badge, Dir, Drawer } from "./ui";
 
@@ -30,6 +31,7 @@ export function ScanDetailDrawer({ id, onClose }: { id: number | null; onClose: 
           </div>
           <p className="text-sm text-ink-soft">{r.details?.reason}</p>
           {r.details?.note && <p className="text-sm text-warn">{r.details.note}</p>}
+          <Commentary c={r.details?.commentary} />
           <Pipeline r={r} />
           {(["gate1", "gate2", "atr", "vix"] as const).map((k) => (
             <div key={k}>

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import type { ScanResult, Setup } from "../api/client";
+import { Commentary } from "./Commentary";
 import { Pipeline } from "./Pipeline";
 import { SignalCard } from "./SignalCard";
 import { Badge } from "./ui";
@@ -51,4 +52,15 @@ test("signal card explains the signal", () => {
   expect(screen.getByText("CALL BUY")).toBeInTheDocument();
   expect(screen.getByText(/v1.0.3/)).toBeInTheDocument();
   expect(screen.getByText("CALL BUY: breakout")).toBeInTheDocument();
+});
+
+test("commentary shows the headline, each gate and the flip level", () => {
+  render(<Commentary c={{
+    headline: "No setup near, CE side (+DI 24.9 / −DI 16.0).", bias: "CE", outlook: "Setup possible from about 14:35 IST.",
+    lines: [{ gate: "5m ADX", status: "FAIL", text: "ADX 22.9, needs ≤ 20 (2.9 to go)." }],
+    levels: [{ direction: "PUT", option: "PE", price: 22469.53, pace: 9.6, candles: 3, pdi: 20.7, mdi: 24.2, adx: 19.5, text: "PE build-up: 5m close ≤ 22,469.53 within 3 candles." }],
+  }} />);
+  expect(screen.getByText(/No setup near/)).toBeInTheDocument();
+  expect(screen.getByText(/needs ≤ 20/)).toBeInTheDocument();
+  expect(screen.getByText(/22,469.53/)).toBeInTheDocument();
 });
