@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { api, Health } from "../api/client";
 import { relative, timeIST } from "../lib/format";
 import { useApi, useRefresh } from "../lib/hooks";
+import { useSignalSound } from "../lib/sound";
 
 const NAV: { title: string; items: { to: string; label: string }[] }[] = [
   { title: "", items: [{ to: "/", label: "Dashboard" }] },
@@ -53,6 +54,7 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
 
 function Header({ health, reload }: { health: Health | null; reload: () => void }) {
   const { autoRefresh, setAutoRefresh, bump } = useRefresh();
+  const sound = useSignalSound();
   const [scanning, setScanning] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -108,6 +110,7 @@ function Header({ health, reload }: { health: Health | null; reload: () => void 
           <Toggle on={!!health?.auto_scan.runtime_enabled} label="Auto Scan"
             onChange={async (v) => { await api.setAutoScan(v); reload(); }} />
           <Toggle on={autoRefresh} label="Auto Refresh" onChange={setAutoRefresh} />
+          <Toggle on={sound.on} label="Sound" onChange={sound.toggle} />
           {health?.connected ? (
             <button className="btn border-good/50 text-good hover:text-good" disabled={health.provider !== "kite"}
               title={health.provider === "kite" ? `Kite session valid for ${health.session_date ?? "today"} — click to reconnect` : "Mock data provider"}

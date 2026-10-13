@@ -7,7 +7,8 @@ strategy configuration (copied from another DB's active config, or the defaults)
 
 Usage (from backend/, with the Kite key in .env and a token for today in the live DB):
   python -m app.tools.backfill --out oscout_v2_backfill.db --days 60 \
-      --config-from oscout_v2_live.db --token-from oscout_v2_live.db
+      --config-from oscout_v2_live.db --token-from oscout_v2_live.db --candles-from oscout_v2_live.db
+--candles-from fills days the provider leaves out (after midnight Kite stops returning the previous day).
 """
 import argparse
 import json
@@ -34,6 +35,8 @@ def main():
     ap.add_argument("--config-from", help="SQLite DB whose active strategy configuration is used")
     ap.add_argument("--token-from", help="SQLite DB holding today's Kite access token")
     ap.add_argument("--provider", default="kite", choices=["kite", "mock"])
+    ap.add_argument("--candles-from", action="append", default=[],
+                    help="SQLite DB(s) whose stored 5m candles fill any gap the provider leaves (e.g. the live DB)")
     a = ap.parse_args()
     if os.path.exists(a.out):
         sys.exit(f"{a.out} already exists; choose a new file")
@@ -50,11 +53,11 @@ def main():
     from sqlalchemy import select
 
     import app.db.models  # noqa: F401
-    from app.core.clock import IST, latest_completed_start, now_utc, session_close, session_open, to_ist
+    from app.core.clock import UTC, as_utc, latest_completed_start, now_utc, session_close, session_open, to_ist
     from app.db.models import MarketCandle, ScanResult, ScanRun, SignalSetup, StrategyConfiguration, Trade
     from app.db.session import Base, SessionLocal, get_engine
     from app.market.factory import get_provider
-    from app.market.ingestion import sync_symbol
+    from app.market.ingestion import _insert, aggregate_15m, sync_5m, update_indicators
     from app.market.symbols import TRADABLE, VIX
     from app.scanner.service import run_scan
     from app.strategy import store
@@ -75,9 +78,24 @@ def main():
     t0 = time.time()
     provider, now = get_provider(), now_utc()
     for sym in TRADABLE + [VIX]:
-        r = sync_symbol(db, provider, sym, cfg.indicator_periods(), now)
+        r = sync_5m(db, provider, sym, now)
+        filled = 0
+        for src in a.candles_from:  # provider gaps (e.g. Kite returning nothing for the last day after midnight)
+            have = set(db.scalars(select(MarketCandle.ts).where(MarketCandle.symbol == sym, MarketCandle.timeframe == "5m")))
+            con = sqlite3.connect(f"file:{src}?mode=ro", uri=True)
+            rows = [{"ts": as_utc(datetime.fromisoformat(t[:19]).replace(tzinfo=UTC)), "open": o, "high": h, "low": l, "close": c, "volume": v}
+                    for t, o, h, l, c, v in con.execute("select ts, open, high, low, close, volume from market_candles "
+                                                        "where symbol=? and timeframe='5m'", (sym,))]
+            con.close()
+            first = min(have) if have else None
+            rows = [x for x in rows if x["ts"] not in have and (first is None or x["ts"] > first)]
+            filled += _insert(db, sym, "5m", rows, "copy")[0]
+        n15 = aggregate_15m(db, sym)
+        for p in sorted(cfg.indicator_periods()):
+            update_indicators(db, sym, "5m", p)
+            update_indicators(db, sym, "15m", p)
         db.commit()
-        print(f"{sym}: {r.inserted_5m} 5m candles, {r.inserted_15m} 15m", flush=True)
+        print(f"{sym}: {r.inserted_5m} 5m candles from {provider.name}, {filled} copied, {n15} 15m", flush=True)
 
     days = sorted({to_ist(ts).date() for ts in db.scalars(
         select(MarketCandle.ts).where(MarketCandle.symbol == TRADABLE[0], MarketCandle.timeframe == "5m"))})
