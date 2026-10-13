@@ -12,7 +12,7 @@
 | 8 | Daily ATR "day range used" warning | Backlog | Show today's range so far as % of the 14-day daily ATR beside the 5m ATR warning (card + commentary); warning only. Decide on a blocking rule once there is more data (60-day backfill: only 3 of 47 signals came above 80%). |
 | 9 | Trade journal on each signal | Backlog | Record my decision per signal: taken / skipped, actual entry and exit, reason. Compare discretionary results with the system's after a few weeks (feeds Phase 3 shadow tracking). |
 | 10 | Trailing stop | Built, off (13 Oct 2026) | `exit.breakeven_at_r`, `exit.trail_after_r`, `exit.trail_atr_multiple` (0 = off). Replay Jan 2025–Oct 2026, 376 trades, costs NIFTY 1 / SENSEX 3 pts: baseline +0.014R avg; breakeven at 1R and trail 2×ATR after 1R/1.5R ≈ same (±0.001R); breakeven at 0.5R +0.006R; trail 1.5×ATR after 1R +0.006R. 1R = 3×ATR, so the ADX exit closes most trades before a trail engages. Keep off. |
-| 11 | Chart tab on each index card | Groomed (13 Oct 2026) | Signal / Chart tabs per card, maximize to full screen. Port v1 `CandleChart.tsx` (lightweight-charts). Details below. |
+| 11 | Chart tab on each index card | Groomed (13 Oct 2026) | Signal / Chart tabs per card, maximize to full screen. Port v1 `CandleChart.tsx` (lightweight-charts) + TradingView widget button in the maximized view. Details below. |
 
 ## #11 Chart tab on each index card
 
@@ -27,9 +27,10 @@
   - Price lines while a signal is open: Entry (dashed), Stop (live, moves with the trailing stop), Target.
   - Markers: breakout candle, signal, exit (with reason).
   - Optional pane: 5m ATR. RSI from v1 is dropped (not part of this strategy).
+- **TradingView button** in the maximized view: opens TradingView's free Advanced Chart widget for the index (full indicator menu, drawing tools, timeframes) for free exploration. It runs on TradingView's data feed (may be delayed for NSE/BSE without a TV login) and cannot show our lines or markers; our chart stays the source of truth.
 - Live: refreshes with the scan (15s poll); no extra API calls beyond `/api/market/candles` and `/api/signals/active`.
 
-**Out of scope:** 15m chart, drawing tools, option premium chart (comes with Greeks #1).
+**Out of scope:** 15m chart and drawing tools on our chart, option premium chart (comes with Greeks #1), TradingView Charting Library (licensed, needs TradingView approval).
 
 **Acceptance**
 - Both tabs work on desktop and phone width; maximize fills the screen and restores cleanly.
