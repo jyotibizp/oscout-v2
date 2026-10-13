@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { api, Health } from "../api/client";
 import { relative, timeIST } from "../lib/format";
+import { useSignalChime } from "../lib/chime";
 import { useApi, useRefresh } from "../lib/hooks";
 
 const NAV: { title: string; items: { to: string; label: string }[] }[] = [
@@ -54,6 +55,8 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
 function Header({ health, reload }: { health: Health | null; reload: () => void }) {
   const { autoRefresh, setAutoRefresh, bump } = useRefresh();
   const [scanning, setScanning] = useState(false);
+  const signals = useApi(api.activeSignals, [], 15000);
+  const { muted, setMuted } = useSignalChime(signals.data?.active.map((s) => s.id));
   const [msg, setMsg] = useState<string | null>(null);
 
   const scan = async () => {
@@ -108,6 +111,7 @@ function Header({ health, reload }: { health: Health | null; reload: () => void 
           <Toggle on={!!health?.auto_scan.runtime_enabled} label="Auto Scan"
             onChange={async (v) => { await api.setAutoScan(v); reload(); }} />
           <Toggle on={autoRefresh} label="Auto Refresh" onChange={setAutoRefresh} />
+          <Toggle on={!muted} label="Sound" onChange={(v) => setMuted(!v)} />
           {health?.connected ? (
             <button className="btn border-good/50 text-good hover:text-good" disabled={health.provider !== "kite"}
               title={health.provider === "kite" ? `Kite session valid for ${health.session_date ?? "today"} — click to reconnect` : "Mock data provider"}
