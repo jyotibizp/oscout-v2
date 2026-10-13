@@ -15,3 +15,5 @@ One row per item; groomed items get a spec in [docs/program/backlog/](docs/progr
 | 9 | Trade journal on each signal | Backlog | Record my decision per signal: taken / skipped, actual entry and exit, reason. Compare discretionary results with the system's after a few weeks (feeds Phase 3 shadow tracking). |
 | 10 | Trailing stop | Built, off (13 Oct 2026) | `exit.breakeven_at_r`, `exit.trail_after_r`, `exit.trail_atr_multiple` (0 = off). Replay Jan 2025–Oct 2026, 376 trades, costs NIFTY 1 / SENSEX 3 pts: baseline +0.014R avg; breakeven at 1R and trail 2×ATR after 1R/1.5R ≈ same (±0.001R); breakeven at 0.5R +0.006R; trail 1.5×ATR after 1R +0.006R. 1R = 3×ATR, so the ADX exit closes most trades before a trail engages. Keep off. |
 | 11 | Chart tab on each index card | Groomed (13 Oct 2026) | Signal / Chart tabs per card, maximize to full screen. Port v1 `CandleChart.tsx` (lightweight-charts) + TradingView widget button in the maximized view. Spec: [11-chart-tab.md](docs/program/backlog/11-chart-tab.md). |
+| 12 | Chat companion | AI chat companion with which trader can discuss scans, signals and get opinion in live market or otherwise also|
+
