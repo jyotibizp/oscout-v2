@@ -36,6 +36,13 @@ cp .env.example .env            # VITE_API_BASE_URL=http://localhost:8000
 npm run dev
 ```
 
+Or run both detached in the background from the repo root (PIDs and logs in `.run/`):
+
+```bash
+./dev.sh start | stop | restart | status [backend|frontend]
+./dev.sh logs [backend|frontend] [-n LINES]
+```
+
 With `DATA_PROVIDER=kite`, set `KITE_API_KEY` / `KITE_API_SECRET`, point the Kite app's redirect URL at
 `http://localhost:8000/api/system/callback` (`/auth/callback` and `/api/auth/callback` also work), and press **CONNECT** each morning (Kite sessions expire daily).
 
