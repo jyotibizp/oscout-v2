@@ -350,6 +350,28 @@ class Position:
     last_adx: float
     declines: int = 0
     held: int = 0
+    risk: float | None = None  # initial entry-to-stop distance (1R); defaults from the initial stop
+    stop_moved: bool = False   # stop tightened by breakeven / trailing
+
+    def __post_init__(self):
+        if self.risk is None and self.stop is not None:
+            self.risk = abs(self.entry_price - self.stop)
+
+
+def trail_stop(pos: Position, b: Bar, c) -> None:
+    """Tighten the stop at a candle close: breakeven at +N R, then trail k×ATR behind the close. Never loosens."""
+    if pos.stop is None or not pos.risk:
+        return
+    d = pos.direction
+    r = (b.close - pos.entry_price) * d / pos.risk
+    new = pos.stop
+    if c.breakeven_at_r > 0 and r >= c.breakeven_at_r:
+        new = pos.entry_price if (pos.entry_price - new) * d > 0 else new
+    if c.trail_after_r > 0 and r >= c.trail_after_r and b.atr:
+        t = b.close - d * c.trail_atr_multiple * b.atr
+        new = t if (t - new) * d > 0 else new
+    if new != pos.stop:
+        pos.stop, pos.stop_moved = round(new, 2), True
 
 
 @dataclass
@@ -370,6 +392,8 @@ def evaluate_exit(pos: Position, bars: list[Bar], cfg: StrategyConfig, last_of_s
         fav, adv = (b.high, b.low) if d > 0 else (b.low, b.high)
         if pos.stop is not None and (adv - pos.stop) * d <= 0:
             px = b.open if (b.open - pos.stop) * d < 0 else pos.stop  # gap through the stop fills at the open
+            if pos.stop_moved:
+                return pos, ExitDecision(b.ts, px, "TRAIL_STOP", f"Trailing stop {pos.stop} hit")
             return pos, ExitDecision(b.ts, px, "STOP", f"Protective stop {pos.stop} hit")
         if pos.target is not None and (fav - pos.target) * d >= 0:
             return pos, ExitDecision(b.ts, pos.target, "TARGET", f"Profit target {pos.target} reached")
@@ -392,4 +416,5 @@ def evaluate_exit(pos: Position, bars: list[Bar], cfg: StrategyConfig, last_of_s
             return pos, ExitDecision(b.ts, b.close, "SESSION_END", "Session end")
         if pos.held >= c.max_hold_candles:
             return pos, ExitDecision(b.ts, b.close, "MAX_HOLD", f"Held {pos.held} candles")
+        trail_stop(pos, b, c)
     return pos, None

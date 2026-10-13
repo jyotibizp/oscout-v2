@@ -53,3 +53,30 @@ def test_session_end_and_max_hold():
     p.held = CFG.exit.max_hold_candles - 1
     _, ex = evaluate_exit(p, make_bars([26.0], close=[101.0]), CFG, never_last)
     assert ex.reason == "MAX_HOLD"
+
+
+def _trail_cfg(**kw):
+    return CFG.model_copy(update={"exit": CFG.exit.model_copy(update=kw)})
+
+
+def test_trailing_stop_off_by_default():
+    p, ex = evaluate_exit(pos(), make_bars([26.0], close=[140.0]), CFG, never_last)
+    assert ex is None and p.stop == 70.0 and not p.stop_moved
+
+
+def test_breakeven_then_trail_only_tightens():
+    cfg = _trail_cfg(breakeven_at_r=1.0, trail_after_r=1.0, trail_atr_multiple=2.0)
+    p, ex = evaluate_exit(pos(), make_bars([26.0], close=[120.0]), cfg, never_last)  # +0.67R: no move
+    assert ex is None and p.stop == 70.0
+    p, ex = evaluate_exit(p, make_bars([27.0], close=[131.0]), cfg, never_last)  # +1.03R: max(entry, 131-20)
+    assert ex is None and p.stop == 111.0 and p.stop_moved
+    p, ex = evaluate_exit(p, make_bars([28.0], close=[125.0]), cfg, never_last)  # pullback: stop never loosens
+    assert ex is None and p.stop == 111.0
+
+
+def test_trailed_stop_exit_is_labelled():
+    cfg = _trail_cfg(breakeven_at_r=1.0)
+    p, _ = evaluate_exit(pos(), make_bars([26.0], close=[131.0]), cfg, never_last)
+    assert p.stop == 100.0
+    _, ex = evaluate_exit(p, make_bars([27.0], close=[95.0]), cfg, never_last)
+    assert ex.reason == "TRAIL_STOP" and ex.price == 95.0  # gapped through the stop: fills at the open

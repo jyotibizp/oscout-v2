@@ -52,11 +52,16 @@ export interface Trade {
   breakout_adx_change: number | null; adx5_entry: number | null; adx15_entry: number | null; atr_status: string | null; vix_entry: number | null;
 }
 export interface SignalEvent { id: number; event: string; candle_ts: string | null; price: number | null; note: string | null; data: any }
+export interface Tracking {
+  ts: string; price: number; pnl_points: number; r: number | null; stop: number | null; initial_stop: number | null; stop_moved: boolean;
+  target: number | null; to_stop: number | null; to_target: number | null; held: number; candles_left: number; adx: number | null;
+  peak_adx: number | null; adx_declines: number; verdict: "HOLD" | "TRAIL" | "WATCH"; reasons: string[];
+}
 export interface Setup {
   id: number; symbol: string; direction: "CALL" | "PUT"; state: string; breakout_ts: string; detected_at: string; config_version: string;
   breakout: Record<string, any>; signal_ts: string | null; entry_price: number | null; entry_atr: number | null; stop_price: number | null;
   target_price: number | null; signal_context: Record<string, any> | null; peak_adx: number | null; exit_ts: string | null;
-  exit_price: number | null; exit_reason: string | null; closed_reason: string | null; trade: Trade | null; events?: SignalEvent[]; scans?: ScanResult[];
+  exit_price: number | null; exit_reason: string | null; closed_reason: string | null; trade: Trade | null; events?: SignalEvent[]; scans?: ScanResult[]; tracking?: Tracking | null;
 }
 export interface Feed { feed: string; symbol: string; timeframe: string; status: string; reason: string | null; last_candle: string | null; expected_candle: string; candles: number; last_update: string | null; last_sync: string | null; last_error: string | null; market_open: boolean }
 export interface Health {
@@ -82,7 +87,7 @@ export const api = {
   latest: () => req<{ run: ScanRun | null; symbols: Record<string, ScanResult | null> }>("/api/scans/latest"),
   scanHistory: (p: Record<string, string | number | undefined>) => req<{ total: number; items: ScanResult[] }>(`/api/scans/history${qs(p)}`),
   scanResult: (id: number) => req<ScanResult>(`/api/scans/results/${id}`),
-  activeSignals: () => req<{ active: Setup[]; pending: Setup[] }>("/api/signals/active"),
+  activeSignals: () => req<{ active: Setup[]; pending: Setup[]; exited_today: Setup[] }>("/api/signals/active"),
   signalHistory: (p: Record<string, string | number | undefined>) => req<{ total: number; items: Setup[] }>(`/api/signals/history${qs(p)}`),
   signal: (id: number) => req<Setup>(`/api/signals/${id}`),
   candles: (symbol: string, timeframe = "5m", limit = 120) => req<{ ts: string; close: number; adx: number | null; pdi: number | null; mdi: number | null }[]>(`/api/market/candles${qs({ symbol, timeframe, limit })}`),

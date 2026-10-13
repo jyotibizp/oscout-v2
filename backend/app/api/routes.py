@@ -22,6 +22,7 @@ from app.performance import metrics
 from app.scanner.scheduler import auto_scanner
 from app.scanner.service import run_scan
 from app.signals.lifecycle import OPEN
+from app.signals.tracking import track
 from app.strategy import store
 from app.strategy.config import StrategyConfig, describe
 
@@ -119,7 +120,19 @@ def signals_active(db: Session = Depends(get_db)):
     rows = db.scalars(select(SignalSetup).where(SignalSetup.state.in_(OPEN)).order_by(SignalSetup.id.desc())).all()
     pending = db.scalars(select(SignalSetup).where(SignalSetup.state.in_(("BREAKOUT_DETECTED", "WAITING_CONFIRMATION")))
                          .order_by(SignalSetup.id.desc())).all()
-    return {"active": [_setup_full(db, s) for s in rows], "pending": [_setup_full(db, s) for s in pending]}
+    _, cfg = store.get_active(db)
+    last: dict = {}
+    active = []
+    for s in rows:
+        if s.symbol not in last:
+            bars = load_bars(db, s.symbol, "5m", cfg.five_min.adx_period, cfg.atr.atr_period, 1)
+            last[s.symbol] = bars[-1] if bars else None
+        active.append({**_setup_full(db, s), "tracking": track(s, last[s.symbol], cfg)})
+    day_start = as_utc(datetime.combine(to_ist(now_utc()).date(), time(0), tzinfo=IST))
+    exited = db.scalars(select(SignalSetup).where(SignalSetup.state == "EXIT_TRIGGERED", SignalSetup.exit_ts >= day_start)
+                        .order_by(SignalSetup.exit_ts.desc())).all()
+    return {"active": active, "pending": [_setup_full(db, s) for s in pending],
+            "exited_today": [ser.setup(s, None, db.scalar(select(Trade).where(Trade.setup_id == s.id))) for s in exited]}
 
 
 @router.get("/signals/history")

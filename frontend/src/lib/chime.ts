@@ -18,11 +18,11 @@ function audio(): AudioContext | null {
   }
 }
 
-/** Two-note rising chime via Web Audio (no asset file). */
-export function playChime() {
+/** Two-note chime via Web Audio (no asset file): rising for a new signal, falling for an exit. */
+export function playChime(kind: "signal" | "exit" = "signal") {
   const a = audio();
   if (!a) return;
-  [880, 1320].forEach((freq, i) => {
+  (kind === "signal" ? [880, 1320] : [660, 440]).forEach((freq, i) => {
     const t = a.currentTime + i * 0.18;
     const osc = a.createOscillator();
     const gain = a.createGain();
@@ -37,12 +37,13 @@ export function playChime() {
   });
 }
 
-/** Chime whenever a new active signal id appears. Mute state persists per browser. */
-export function useSignalChime(activeIds: number[] | undefined) {
+/** Chime whenever a new active signal (or a new exit) appears. Mute state persists per browser. */
+export function useSignalChime(activeIds: number[] | undefined, exitIds: number[] | undefined) {
   const [muted, setMutedState] = useState(() => {
     try { return localStorage.getItem(MUTE_KEY) === "1"; } catch { return false; }
   });
   const seen = useRef<Set<number> | null>(null);
+  const seenExits = useRef<Set<number> | null>(null);
 
   // Browsers only allow audio after a user gesture: unlock on the first click anywhere.
   useEffect(() => {
@@ -57,6 +58,13 @@ export function useSignalChime(activeIds: number[] | undefined) {
     seen.current = new Set([...(seen.current ?? []), ...activeIds]);
     if (fresh.length && !muted) playChime();
   }, [activeIds?.join(","), muted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!exitIds) return;
+    const fresh = newIds(seenExits.current, exitIds);
+    seenExits.current = new Set([...(seenExits.current ?? []), ...exitIds]);
+    if (fresh.length && !muted) playChime("exit");
+  }, [exitIds?.join(","), muted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setMuted = (v: boolean) => {
     setMutedState(v);

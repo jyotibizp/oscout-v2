@@ -56,7 +56,7 @@ function Header({ health, reload }: { health: Health | null; reload: () => void 
   const { autoRefresh, setAutoRefresh, bump } = useRefresh();
   const [scanning, setScanning] = useState(false);
   const signals = useApi(api.activeSignals, [], 15000);
-  const { muted, setMuted } = useSignalChime(signals.data?.active.map((s) => s.id));
+  const { muted, setMuted } = useSignalChime(signals.data?.active.map((s) => s.id), signals.data?.exited_today.map((s) => s.id));
   const [msg, setMsg] = useState<string | null>(null);
 
   const scan = async () => {

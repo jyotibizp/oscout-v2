@@ -47,27 +47,60 @@ function Stepper({ r }: { r: ScanResult }) {
 
 function SignalBlock({ s, onOpen }: { s: Setup; onOpen: () => void }) {
   const up = s.direction === "CALL";
+  const t = s.tracking;
   return (
     <div className={`rounded-lg border-l-4 ${up ? "border-l-good" : "border-l-bad"} bg-raise/60 px-4 py-3`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className={`text-xl font-bold ${up ? "text-good" : "text-bad"}`}>{s.direction} BUY <span className="text-sm font-medium text-ink-faint">({up ? "CE" : "PE"})</span></div>
-        <div className="flex items-center gap-2"><Badge s={s.state} /><button className="btn" onClick={onOpen}>Lifecycle</button></div>
+        <div className="flex items-center gap-2">{t && <Badge s={t.verdict} />}<Badge s={s.state} /><button className="btn" onClick={onOpen}>Lifecycle</button></div>
       </div>
       <dl className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm">
         <div><dt className="text-xs text-ink-faint">Signal</dt><dd className="num">{timeIST(s.signal_ts)} IST</dd></div>
         <div><dt className="text-xs text-ink-faint">Entry (index)</dt><dd className="num">{n(s.entry_price, 2)}</dd></div>
-        <div><dt className="text-xs text-ink-faint">Stop</dt><dd className="num text-bad">{n(s.stop_price, 1)}</dd></div>
+        <div><dt className="text-xs text-ink-faint">Stop{t?.stop_moved ? " (moved)" : ""}</dt>
+          <dd className="num text-bad">{n(t?.stop ?? s.stop_price, 1)}{t?.stop_moved && <span className="text-xs text-ink-faint"> was {n(t.initial_stop, 1)}</span>}</dd></div>
         <div><dt className="text-xs text-ink-faint">Target</dt><dd className="num text-good">{n(s.target_price, 1)}</dd></div>
       </dl>
+      {t && (
+        <>
+          <dl className="mt-3 pt-3 border-t border-line grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm">
+            <div><dt className="text-xs text-ink-faint">Now ({timeIST(t.ts)})</dt><dd className="num">{n(t.price, 2)}</dd></div>
+            <div><dt className="text-xs text-ink-faint">P&amp;L</dt>
+              <dd className={`num font-semibold ${t.pnl_points > 0 ? "text-good" : t.pnl_points < 0 ? "text-bad" : ""}`}>{signed(t.pnl_points, 1)} pts · {signed(t.r, 2)}R</dd></div>
+            <div><dt className="text-xs text-ink-faint">To stop / target</dt><dd className="num">{n(t.to_stop, 0)} / {n(t.to_target, 0)}</dd></div>
+            <div><dt className="text-xs text-ink-faint">Held · left</dt><dd className="num">{t.held} · {t.candles_left} candles</dd></div>
+          </dl>
+          <p className="mt-2 text-xs text-ink-soft">
+            5m ADX {n(t.adx)} (peak {n(t.peak_adx)}){t.adx_declines ? `, falling ${t.adx_declines}` : ", not falling"}
+            {t.reasons.length ? ` · ${t.reasons.join(" · ")}` : ""}
+          </p>
+        </>
+      )}
     </div>
+  );
+}
+
+const EXIT_LABEL: Record<string, string> = {
+  STOP: "Stop loss", TRAIL_STOP: "Trailing stop", TARGET: "Target", ADX_EXHAUSTION: "ADX exhaustion",
+  ADX_PEAK_DECLINE: "ADX off peak", DI_REVERSAL: "DI reversal", SESSION_END: "Session end", MAX_HOLD: "Max hold",
+};
+
+function LastExit({ s }: { s: Setup }) {
+  const r = s.trade?.r_multiple;
+  return (
+    <p className="mb-2 text-xs text-ink-soft">
+      <Badge s="EXIT" /> Last {s.direction === "CALL" ? "CE" : "PE"} exited {timeIST(s.exit_ts)} IST at {n(s.exit_price, 1)}:{" "}
+      {EXIT_LABEL[s.exit_reason ?? ""] ?? s.exit_reason}
+      {s.trade?.pnl_points != null && <span className={`num font-semibold ${s.trade.pnl_points > 0 ? "text-good" : "text-bad"}`}> {signed(s.trade.pnl_points, 1)} pts{r != null ? ` (${signed(r, 2)}R)` : ""}</span>}
+    </p>
   );
 }
 
 const CARD_ROWS = 5; // header · verdict · signal or checks · chart · footer, shared by both cards
 
 /** One index card. Its rows sit on the parent grid (subgrid), so both cards line up section by section. */
-function SymbolCard({ sym, r, signal, onSignal, onDetails }: {
-  sym: string; r: ScanResult | null; signal?: Setup; onSignal: (id: number) => void; onDetails: (id: number) => void;
+function SymbolCard({ sym, r, signal, lastExit, onSignal, onDetails }: {
+  sym: string; r: ScanResult | null; signal?: Setup; lastExit?: Setup; onSignal: (id: number) => void; onDetails: (id: number) => void;
 }) {
   const { data: candles } = useApi(() => api.candles(sym, "5m", 90), [sym, r?.id], 60000);
   const rows = { gridRow: `span ${CARD_ROWS}`, gridTemplateRows: "subgrid" } as const;
@@ -98,7 +131,7 @@ function SymbolCard({ sym, r, signal, onSignal, onDetails }: {
 
       <p className="text-base text-ink font-medium leading-snug">{verdict ?? "—"}</p>
 
-      <div>{signal ? <SignalBlock s={signal} onOpen={() => onSignal(signal.id)} /> : <Stepper r={r} />}</div>
+      <div>{signal ? <SignalBlock s={signal} onOpen={() => onSignal(signal.id)} /> : <>{lastExit && <LastExit s={lastExit} />}<Stepper r={r} /></>}</div>
 
       <div className="self-end">
         <Sparkline values={(candles ?? []).map((c) => c.adx)} threshold={level} height={64} />
@@ -189,6 +222,7 @@ export default function Dashboard() {
       <div className="grid gap-x-5 gap-y-5 xl:gap-y-0 xl:grid-cols-2">
         {["NIFTY", "SENSEX"].map((s) => (
           <SymbolCard key={s} sym={s} r={syms[s] ?? null} signal={active.find((a) => a.symbol === s)}
+            lastExit={sig.data?.exited_today.find((x) => x.symbol === s)}
             onSignal={setOpenSignal} onDetails={setOpenScan} />
         ))}
       </div>

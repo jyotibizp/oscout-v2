@@ -27,8 +27,12 @@ const TONE: Record<string, string> = {
   SKIP: "text-ink-faint border-line bg-transparent",
   CLOSED: "text-ink-soft border-line bg-raise",
   OPEN: "text-accent border-accent/50 bg-accent/10",
+  HOLD: "text-good border-good/40 bg-good/10",
+  TRAIL: "text-accent border-accent/50 bg-accent/10",
+  WATCH: "text-warn border-warn/40 bg-warn/10",
+  EXIT: "text-bad border-bad/40 bg-bad/10",
 };
-const ICON: Record<string, string> = { PASS: "✓", FAIL: "✕", FAILED: "✕", WAIT: "…", SKIP: "—", SIGNAL: "●", EXHAUSTED: "!", REJECTED: "✕" };
+const ICON: Record<string, string> = { PASS: "✓", FAIL: "✕", FAILED: "✕", WAIT: "…", SKIP: "—", SIGNAL: "●", EXHAUSTED: "!", REJECTED: "✕", WATCH: "!", EXIT: "■" };
 
 export function Badge({ s, label, className = "" }: { s?: string | null; label?: string; className?: string }) {
   const key = s ?? "SKIP";

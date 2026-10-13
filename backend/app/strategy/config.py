@@ -128,6 +128,12 @@ class ExitSettings(_Group):
                                      description="Safety stop from entry in 5m ATR multiples (0 = off).")
     target_atr_multiple: float = Field(4.5, ge=0, le=50, title="Profit Target (× ATR)",
                                        description="Optional profit target in 5m ATR multiples (0 = off).")
+    breakeven_at_r: float = Field(0.0, ge=0, le=10, title="Breakeven At (R)",
+                                  description="Move the stop to entry once a candle closes this many R in profit (0 = off).")
+    trail_after_r: float = Field(0.0, ge=0, le=10, title="Trail After (R)",
+                                 description="Start trailing the stop once a candle closes this many R in profit (0 = off).")
+    trail_atr_multiple: float = Field(2.0, ge=0.5, le=10, title="Trail Distance (× ATR)",
+                                      description="Trailing stop sits this many 5m ATRs behind each close; it only ever tightens.")
     max_hold_candles: int = Field(36, ge=1, le=300, title="Max Hold (5m candles)", description="Exit at close after this many candles.")
     exit_at_session_end: bool = Field(True, title="Exit At Session End", description="Close any open signal on the 15:25 candle.")
     allow_new_entry_while_active: bool = Field(False, title="Allow Overlapping Signals",

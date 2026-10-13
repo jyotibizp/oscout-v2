@@ -42,14 +42,19 @@ def update_open_signals(db: Session, symbol: str, bars5: list[Bar], cfg: Strateg
         if not new:
             continue
         ctx = s.signal_context or {}
-        pos = Position(direction=DIR[s.direction], entry_price=s.entry_price, stop=s.stop_price, target=s.target_price,
-                       peak_adx=s.peak_adx or ctx.get("adx5") or 0.0, last_adx=ctx.get("last_adx", s.peak_adx or 0.0),
-                       declines=s.adx_declines or 0, held=ctx.get("held", 0))
+        pos = Position(direction=DIR[s.direction], entry_price=s.entry_price, stop=ctx.get("stop", s.stop_price),
+                       target=s.target_price, peak_adx=s.peak_adx or ctx.get("adx5") or 0.0,
+                       last_adx=ctx.get("last_adx", s.peak_adx or 0.0), declines=s.adx_declines or 0, held=ctx.get("held", 0),
+                       risk=abs(s.entry_price - s.stop_price) if s.stop_price else None, stop_moved=ctx.get("stop_moved", False))
+        prev_stop = pos.stop
         pos, ex = evaluate_exit(pos, new, cfg, lambda ts: is_session_last_candle(ts, "5m"))
         if s.state == "SIGNAL_GENERATED":
             _set_state(db, s, "ACTIVE", new[0].ts, "Signal active")
         s.peak_adx, s.adx_declines = pos.peak_adx, pos.declines
-        s.signal_context = {**ctx, "last_adx": pos.last_adx, "held": pos.held}
+        # stop_price keeps the initial stop (1R); the live, possibly trailed stop lives in signal_context
+        s.signal_context = {**ctx, "last_adx": pos.last_adx, "held": pos.held, "stop": pos.stop, "stop_moved": pos.stop_moved}
+        if pos.stop != prev_stop:
+            _event(db, s, "STOP_MOVED", (ex.ts if ex else new[-1].ts), pos.stop, f"Stop moved {prev_stop} → {pos.stop}")
         if ex is None:
             s.last_evaluated_ts = new[-1].ts
             continue
