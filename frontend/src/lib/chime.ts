@@ -7,58 +7,35 @@ export function newIds(prev: Set<number> | null, curr: number[]): number[] {
   return prev ? curr.filter((id) => !prev.has(id)) : [];
 }
 
-let ctx: AudioContext | null = null;
-function audio(): AudioContext | null {
+/** Alert chime: a bright three-note arpeggio repeated 3x (~4.3s), rising for a new
+ *  signal, falling for an exit. Pre-rendered WAVs (scripts/gen-chimes.py) because
+ *  Safari plays <audio> far more reliably than Web Audio oscillators. */
+const players: Partial<Record<"signal" | "exit", HTMLAudioElement>> = {};
+function player(kind: "signal" | "exit"): HTMLAudioElement | null {
   try {
-    if (!ctx) {
-      ctx = new AudioContext();
-      // Safari only unlocks after a sound starts inside a gesture: play one silent sample.
-      const src = ctx.createBufferSource();
-      src.buffer = ctx.createBuffer(1, 1, 22050);
-      src.connect(ctx.destination);
-      src.start(0);
-    }
-    if (ctx.state !== "running") void ctx.resume(); // Safari also uses "interrupted"
-    return ctx;
+    return (players[kind] ??= new Audio(`/chime-${kind}.wav`));
   } catch {
     return null;
   }
 }
 
-const NOTES = { signal: [880, 1175, 1568], exit: [1175, 880, 659] }; // A5-D6-G6 up, reversed down
-const NOTE_GAP = 0.13;
-const BURST_GAP = 1.5;
-const BURSTS = 3; // ~4.5s total
+/** Browsers only allow audio after a user gesture: prime both players silently. */
+function unlockAudio() {
+  (["signal", "exit"] as const).forEach((k) => {
+    const p = player(k);
+    if (!p || !p.paused) return;
+    p.muted = true;
+    // still muted = no real chime started meanwhile, so stop the priming play
+    p.play().then(() => { if (p.muted) { p.pause(); p.currentTime = 0; p.muted = false; } }, () => { p.muted = false; });
+  });
+}
 
-/** Alert chime via Web Audio (no asset file): a bright three-note arpeggio repeated
- *  3x (~4.5s), rising for a new signal, falling for an exit. `bursts` shortens it. */
-export function playChime(kind: "signal" | "exit" = "signal", bursts = BURSTS, retried = false) {
-  const a = audio();
-  if (!a) return;
-  // Schedule once running, else Safari can drop notes queued on a suspended clock.
-  if (a.state !== "running" && !retried) { void a.resume().then(() => playChime(kind, bursts, true), () => {}); return; }
-  const out = a.createDynamicsCompressor(); // lets peaks run hot without clipping
-  out.connect(a.destination);
-  for (let b = 0; b < bursts; b++) {
-    NOTES[kind].forEach((freq, i) => {
-      const t = a.currentTime + b * BURST_GAP + i * NOTE_GAP;
-      const last = i === NOTES[kind].length - 1;
-      const len = last ? 0.9 : 0.35;
-      // triangle body + sine an octave up for a bell-like, cutting tone
-      ([["triangle", freq, 0.9], ["sine", freq * 2, 0.35]] as const).forEach(([type, f, peak]) => {
-        const osc = a.createOscillator();
-        const gain = a.createGain();
-        osc.type = type;
-        osc.frequency.value = f;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(peak, t + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + len);
-        osc.connect(gain).connect(out);
-        osc.start(t);
-        osc.stop(t + len + 0.05);
-      });
-    });
-  }
+export function playChime(kind: "signal" | "exit" = "signal") {
+  const p = player(kind);
+  if (!p) return;
+  p.muted = false;
+  p.currentTime = 0;
+  p.play().catch(() => {});
 }
 
 /** Chime whenever a new active signal (or a new exit) appears. Mute state persists per browser. */
@@ -72,7 +49,7 @@ export function useSignalChime(activeIds: number[] | undefined, exitIds: number[
   // Browsers only allow audio after a user gesture: unlock on any click/key until running.
   useEffect(() => {
     const evts = ["click", "keydown", "touchend"] as const;
-    const unlock = () => { if (audio()?.state === "running") evts.forEach((e) => document.removeEventListener(e, unlock)); };
+    const unlock = () => { unlockAudio(); evts.forEach((e) => document.removeEventListener(e, unlock)); };
     evts.forEach((e) => document.addEventListener(e, unlock));
     return () => evts.forEach((e) => document.removeEventListener(e, unlock));
   }, []);
