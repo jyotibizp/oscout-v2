@@ -5,12 +5,12 @@ Status: Groomed (14 Oct 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
 **Why:** when a signal fires I open Kite to see the chain (premiums, OI build-up around ATM). I want that view on the card itself.
 
 **Scope**
-- Third tab on each NIFTY / SENSEX card: **Signal / Chart / Chain** (tabs from #11). Maximize works as on Chart.
+- Third tab on each NIFTY / SENSEX card: **Signal / Chart / Chain** (tabs from #11). Maximize works as on Chart. Always available, signal or not.
 - Current (nearest) weekly expiry only; expiry date shown in the tab header.
 - Table like Kite's chain: Call side | Strike | Put side, strikes centred on ATM (ATM ±10), ATM row highlighted, spot price line between strikes.
 - **OI view** (default): per side LTP with day change %, OI in lakhs with OI change % vs previous day close.
 - **Greeks view** (toggle): per side IV, delta, theta, gamma, vega, from Black-Scholes on LTP (same `options/greeks` code #1 will use).
-- Strikes the open signal would trade (≈0.70 delta) marked.
+- When a signal is open, its strike (≈0.70 delta) is marked.
 - Backend: `GET /api/options/chain?symbol=NIFTY`.
   - Kite `instruments("NFO" / "BFO")` once a day, cached: picks expiry and strike tokens.
   - Kite `quote()` for the ~42 strikes in one call (LTP, OI, change).
