@@ -84,7 +84,7 @@ export function useSignalChime(activeIds: number[] | undefined, exitIds: number[
   const setMuted = (v: boolean) => {
     setMutedState(v);
     try { localStorage.setItem(MUTE_KEY, v ? "1" : "0"); } catch { /* ignore */ }
-    if (!v) playChime("signal", 1); // short audible confirmation when turning sound on
+    if (!v) playChime(); // full alert on unmute, doubles as a sound test
   };
   return { muted, setMuted };
 }
