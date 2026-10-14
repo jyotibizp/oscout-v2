@@ -63,6 +63,11 @@ cd backend
   --cost NIFTY=5 --cost SENSEX=17 [--set exit.stop_atr_multiple=2 ...]
 ```
 
+## Docs
+
+- Product spec: [`workflow.md`](workflow.md); backlog: [`BACKLOG.md`](BACKLOG.md) (specs in `docs/program/backlog/`); PM docs: [`docs/product/`](docs/product/).
+- Style: very minimal, short docs; bullets over prose; no padding; link instead of repeating.
+
 ## Architecture
 
 ```text
