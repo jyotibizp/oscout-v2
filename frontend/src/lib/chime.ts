@@ -18,23 +18,38 @@ function audio(): AudioContext | null {
   }
 }
 
-/** Two-note chime via Web Audio (no asset file): rising for a new signal, falling for an exit. */
-export function playChime(kind: "signal" | "exit" = "signal") {
+const NOTES = { signal: [880, 1175, 1568], exit: [1175, 880, 659] }; // A5-D6-G6 up, reversed down
+const NOTE_GAP = 0.13;
+const BURST_GAP = 1.5;
+const BURSTS = 3; // ~4.5s total
+
+/** Alert chime via Web Audio (no asset file): a bright three-note arpeggio repeated
+ *  3x (~4.5s), rising for a new signal, falling for an exit. `bursts` shortens it. */
+export function playChime(kind: "signal" | "exit" = "signal", bursts = BURSTS) {
   const a = audio();
   if (!a) return;
-  (kind === "signal" ? [880, 1320] : [660, 440]).forEach((freq, i) => {
-    const t = a.currentTime + i * 0.18;
-    const osc = a.createOscillator();
-    const gain = a.createGain();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-    osc.connect(gain).connect(a.destination);
-    osc.start(t);
-    osc.stop(t + 0.55);
-  });
+  const out = a.createDynamicsCompressor(); // lets peaks run hot without clipping
+  out.connect(a.destination);
+  for (let b = 0; b < bursts; b++) {
+    NOTES[kind].forEach((freq, i) => {
+      const t = a.currentTime + b * BURST_GAP + i * NOTE_GAP;
+      const last = i === NOTES[kind].length - 1;
+      const len = last ? 0.9 : 0.35;
+      // triangle body + sine an octave up for a bell-like, cutting tone
+      ([["triangle", freq, 0.9], ["sine", freq * 2, 0.35]] as const).forEach(([type, f, peak]) => {
+        const osc = a.createOscillator();
+        const gain = a.createGain();
+        osc.type = type;
+        osc.frequency.value = f;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(peak, t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        osc.connect(gain).connect(out);
+        osc.start(t);
+        osc.stop(t + len + 0.05);
+      });
+    });
+  }
 }
 
 /** Chime whenever a new active signal (or a new exit) appears. Mute state persists per browser. */
@@ -69,7 +84,7 @@ export function useSignalChime(activeIds: number[] | undefined, exitIds: number[
   const setMuted = (v: boolean) => {
     setMutedState(v);
     try { localStorage.setItem(MUTE_KEY, v ? "1" : "0"); } catch { /* ignore */ }
-    if (!v) playChime(); // audible confirmation when turning sound on
+    if (!v) playChime("signal", 1); // short audible confirmation when turning sound on
   };
   return { muted, setMuted };
 }
