@@ -25,6 +25,19 @@ def db(tmp_path):
     s.close()
 
 
+def client_at(host):
+    """TestClient whose requests come from `host` (the viewer guard reads the socket peer)."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    async def peer(scope, receive, send):
+        if scope["type"] == "http":
+            scope = {**scope, "client": (host, 50000)}
+        await app(scope, receive, send)
+    return TestClient(peer)
+
+
 def ist(y, mo, d, h, mi, s=0):
     return as_utc(datetime(y, mo, d, h, mi, s, tzinfo=IST))
 

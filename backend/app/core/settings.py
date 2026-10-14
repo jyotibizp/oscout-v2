@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     kite_access_token: str = ""
     frontend_url: str = "http://localhost:5173"
     cors_origins: str = "http://localhost:5173"
+    admin_ips: str = ""                  # comma list of extra client IPs allowed to change state (loopback always is)
+    frontend_dist: str = "../frontend/dist"  # built UI served at / when present (relative to backend/)
     initial_backfill_days: int = 30      # first-run history per symbol (calendar days)
     max_fetch_days: int = 90             # Kite allows ~100 days per 5m request
     start_scheduler: bool = True         # background auto-scan loop (disabled in tests)

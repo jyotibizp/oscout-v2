@@ -3,6 +3,7 @@ import { api, ConfigResp, ParamMeta } from "../api/client";
 import { ErrorNote, PageHeader } from "../components/ui";
 import { dateTimeIST } from "../lib/format";
 import { useApi } from "../lib/hooks";
+import { useRole } from "../lib/role";
 
 type Params = ConfigResp["params"];
 
@@ -41,6 +42,7 @@ export default function Strategy() {
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const admin = useRole() === "admin";
   useEffect(() => { if (cfg.data) setDraft(structuredClone(cfg.data.params)); }, [cfg.data]);
   if (!cfg.data || !draft) return <div><PageHeader title="ADX Configuration" /><ErrorNote error={cfg.error} /></div>;
 
@@ -64,7 +66,7 @@ export default function Strategy() {
   return (
     <div>
       <PageHeader title="ADX Configuration" sub={`Active: ADX Strategy v${cfg.data.version} · saved ${dateTimeIST(cfg.data.created_at)}${cfg.data.note ? ` · ${cfg.data.note}` : ""}`}
-        right={
+        right={admin &&
           <div className="flex items-center gap-2">
             <input className="input w-56" placeholder="Change note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
             <button className="btn" onClick={reset}>RESET DEFAULTS</button>
@@ -91,7 +93,8 @@ export default function Strategy() {
                         <div className="text-xs text-ink-faint max-w-md">{p.description}{p.min !== null && p.max !== null ? ` (${p.min}–${p.max})` : ""}</div>
                       </td>
                       <td className="td">
-                        <Input p={p} value={v} onChange={(nv) => setDraft({ ...draft, [g.key]: { ...draft[g.key], [p.key]: nv } })} />
+                        {admin ? <Input p={p} value={v} onChange={(nv) => setDraft({ ...draft, [g.key]: { ...draft[g.key], [p.key]: nv } })} />
+                          : <span className="num text-sm">{String(v)}</span>}
                         {errors[k] && <div className="text-xs text-bad mt-1">{errors[k]}</div>}
                       </td>
                       <td className="td num text-ink-faint text-xs">{String(p.default)}</td>

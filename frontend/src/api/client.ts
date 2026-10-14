@@ -1,4 +1,5 @@
-const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8000";
+// Relative by default: the backend serves the UI (and Vite proxies /api in dev), so friends' browsers hit the Mac, not themselves.
+const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public detail?: unknown) {
@@ -80,6 +81,7 @@ export interface Summary {
 
 export const api = {
   health: () => req<Health>("/api/system/health"),
+  whoami: () => req<{ role: "admin" | "viewer" }>("/api/system/whoami"),
   connect: () => req<{ provider: string; connected: boolean; login_url: string | null; message?: string }>("/api/system/connect"),
   setAutoScan: (enabled: boolean) => req("/api/system/autoscan", { method: "POST", body: JSON.stringify({ enabled }) }),
   events: (category?: string) => req<{ id: number; ts: string; level: string; category: string; message: string; data: any }[]>(`/api/system/events${qs({ category, limit: 200 })}`),

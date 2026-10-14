@@ -1,13 +1,12 @@
 from datetime import timedelta
 
-from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.db.models import SignalEvent, SignalSetup, Trade
 from app.signals.lifecycle import apply_result, update_open_signals
 from app.strategy import store
 from app.strategy.engine import GateResult, StrategyResult
-from tests.conftest import ist, make_bars
+from tests.conftest import client_at, ist, make_bars
 
 
 def _result(state, ts, direction="CALL", entry=100.0):
@@ -53,8 +52,7 @@ def test_pending_setup_expires_when_breakout_gone(db):
 
 
 def test_api_scan_config_and_health(db):
-    from app.main import app
-    c = TestClient(app)
+    c = client_at("127.0.0.1")
     r = c.post("/api/scans/run")
     assert r.status_code == 200 and {x["symbol"] for x in r.json()["results"]} == {"NIFTY", "SENSEX"}
     latest = c.get("/api/scans/latest").json()["symbols"]["NIFTY"]

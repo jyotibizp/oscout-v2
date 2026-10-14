@@ -1,6 +1,6 @@
 # #13 Share the app with a small group (Mac + Tailscale)
 
-Status: Groomed (13 Oct 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
+Status: Built (14 Oct 2026), Mac/Tailscale setup pending · Setup: [deploy/macos/README.md](../../../deploy/macos/README.md) · Index: [BACKLOG.md](../../../BACKLOG.md)
 
 **Why:** a few close friends should see the live dashboard and signals. Cheapest reasonable route: keep it on my Mac, share it privately over Tailscale. ₹0/month, no domain, no Kite changes.
 

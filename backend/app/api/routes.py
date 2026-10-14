@@ -1,13 +1,14 @@
 """REST API: /api/market, /api/scans, /api/signals, /api/config, /api/performance, /api/system."""
 from datetime import date, datetime, time, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api import serializers as ser
+from app.api.access import is_admin
 from app.core.clock import IST, as_utc, is_market_open, now_utc, to_ist
 from app.core.settings import get_settings
 from app.db.models import (MarketCandle, ScanResult, ScanRun, SignalEvent, SignalSetup, StrategyConfiguration,
@@ -267,6 +268,11 @@ def system_health(db: Session = Depends(get_db)):
     return {"now": now.isoformat(), "market_open": is_market_open(now), "provider": p.name,
             "connected": p.is_connected(), "session_date": str(getattr(p, "_token_day", "") or "") or None, "feeds": feeds, "auto_scan": auto_scanner.status(),
             "last_scan": ser.scan_run(last) if last else None}
+
+
+@router.get("/system/whoami")
+def system_whoami(request: Request):
+    return {"role": "admin" if is_admin(request) else "viewer"}
 
 
 @router.get("/system/connect")

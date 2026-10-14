@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { api, Health } from "../api/client";
 import { relative, timeIST } from "../lib/format";
 import { useSignalChime } from "../lib/chime";
+import { useRole } from "../lib/role";
 import { useApi, useRefresh } from "../lib/hooks";
 
 const NAV: { title: string; items: { to: string; label: string }[] }[] = [
@@ -52,12 +53,13 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
   );
 }
 
-function Header({ health, reload }: { health: Health | null; reload: () => void }) {
+export function Header({ health, reload }: { health: Health | null; reload: () => void }) {
   const { autoRefresh, setAutoRefresh, bump } = useRefresh();
   const [scanning, setScanning] = useState(false);
   const signals = useApi(api.activeSignals, [], 15000);
   const { muted, setMuted } = useSignalChime(signals.data?.active.map((s) => s.id), signals.data?.exited_today.map((s) => s.id));
   const [msg, setMsg] = useState<string | null>(null);
+  const admin = useRole() === "admin";
 
   const scan = async () => {
     setScanning(true);
@@ -108,11 +110,13 @@ function Header({ health, reload }: { health: Health | null; reload: () => void 
             {health?.auto_scan.enabled && <span className="text-ink-faint"> ({relative(health.auto_scan.next_run)})</span>}</span>
         </div>
         <div className="ml-auto flex items-center gap-4">
-          <Toggle on={!!health?.auto_scan.runtime_enabled} label="Auto Scan"
-            onChange={async (v) => { await api.setAutoScan(v); reload(); }} />
+          {admin && <Toggle on={!!health?.auto_scan.runtime_enabled} label="Auto Scan"
+            onChange={async (v) => { await api.setAutoScan(v); reload(); }} />}
           <Toggle on={autoRefresh} label="Auto Refresh" onChange={setAutoRefresh} />
           <Toggle on={!muted} label="Sound" onChange={(v) => setMuted(!v)} />
-          {health?.connected ? (
+          {!admin ? (
+            <span className="rounded border border-line px-2 py-1 text-xs text-ink-soft" title="Shared read-only view">View only</span>
+          ) : health?.connected ? (
             <button className="btn border-good/50 text-good hover:text-good" disabled={health.provider !== "kite"}
               title={health.provider === "kite" ? `Kite session valid for ${health.session_date ?? "today"} — click to reconnect` : "Mock data provider"}
               onClick={connect}>
@@ -121,7 +125,7 @@ function Header({ health, reload }: { health: Health | null; reload: () => void 
           ) : (
             <button className="btn border-warn/60 text-warn" onClick={connect} title="Log in to Kite to start live data">CONNECT</button>
           )}
-          <button className="btn-primary px-5" onClick={scan} disabled={scanning}>{scanning ? "SCANNING…" : "SCAN NOW"}</button>
+          {admin && <button className="btn-primary px-5" onClick={scan} disabled={scanning}>{scanning ? "SCANNING…" : "SCAN NOW"}</button>}
         </div>
       </div>
       {msg && <div className="px-5 pb-2 text-xs text-ink-soft">{msg}</div>}
@@ -138,6 +142,7 @@ export default function Layout() {
         <Header health={data} reload={reload} />
         <main className="flex-1 overflow-y-auto px-5 py-5 md:px-7">
           <Outlet context={{ health: data }} />
+          <footer className="mt-8 text-xs text-ink-faint">Educational tool, not investment advice.</footer>
         </main>
       </div>
     </div>
