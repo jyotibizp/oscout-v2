@@ -7,7 +7,7 @@ export function newIds(prev: Set<number> | null, curr: number[]): number[] {
   return prev ? curr.filter((id) => !prev.has(id)) : [];
 }
 
-/** Alert chime: a bright three-note arpeggio repeated 3x (~4.3s), rising for a new
+/** Alert chime: a bright three-note arpeggio repeated 6x (~8.8s), rising for a new
  *  signal, falling for an exit. Pre-rendered WAVs (scripts/gen-chimes.py) because
  *  Safari plays <audio> far more reliably than Web Audio oscillators. */
 const players: Partial<Record<"signal" | "exit", HTMLAudioElement>> = {};

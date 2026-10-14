@@ -1,7 +1,7 @@
 """Render the alert chimes to public/chime-{signal,exit}.wav (run: python3 scripts/gen-chimes.py)."""
 import math, struct, wave, pathlib
 
-SR, NOTE_GAP, BURST_GAP, BURSTS = 44100, 0.13, 1.5, 3
+SR, NOTE_GAP, BURST_GAP, BURSTS = 44100, 0.13, 1.5, 6
 NOTES = {"signal": [880, 1175, 1568], "exit": [1175, 880, 659]}
 
 def tri(x):  # triangle wave, period 1
