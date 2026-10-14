@@ -10,8 +10,15 @@ export function newIds(prev: Set<number> | null, curr: number[]): number[] {
 let ctx: AudioContext | null = null;
 function audio(): AudioContext | null {
   try {
-    ctx ??= new AudioContext();
-    if (ctx.state === "suspended") void ctx.resume();
+    if (!ctx) {
+      ctx = new AudioContext();
+      // Safari only unlocks after a sound starts inside a gesture: play one silent sample.
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, 22050);
+      src.connect(ctx.destination);
+      src.start(0);
+    }
+    if (ctx.state !== "running") void ctx.resume(); // Safari also uses "interrupted"
     return ctx;
   } catch {
     return null;
@@ -25,9 +32,11 @@ const BURSTS = 3; // ~4.5s total
 
 /** Alert chime via Web Audio (no asset file): a bright three-note arpeggio repeated
  *  3x (~4.5s), rising for a new signal, falling for an exit. `bursts` shortens it. */
-export function playChime(kind: "signal" | "exit" = "signal", bursts = BURSTS) {
+export function playChime(kind: "signal" | "exit" = "signal", bursts = BURSTS, retried = false) {
   const a = audio();
   if (!a) return;
+  // Schedule once running, else Safari can drop notes queued on a suspended clock.
+  if (a.state !== "running" && !retried) { void a.resume().then(() => playChime(kind, bursts, true), () => {}); return; }
   const out = a.createDynamicsCompressor(); // lets peaks run hot without clipping
   out.connect(a.destination);
   for (let b = 0; b < bursts; b++) {
@@ -60,11 +69,12 @@ export function useSignalChime(activeIds: number[] | undefined, exitIds: number[
   const seen = useRef<Set<number> | null>(null);
   const seenExits = useRef<Set<number> | null>(null);
 
-  // Browsers only allow audio after a user gesture: unlock on the first click anywhere.
+  // Browsers only allow audio after a user gesture: unlock on any click/key until running.
   useEffect(() => {
-    const unlock = () => audio();
-    document.addEventListener("pointerdown", unlock, { once: true });
-    return () => document.removeEventListener("pointerdown", unlock);
+    const evts = ["click", "keydown", "touchend"] as const;
+    const unlock = () => { if (audio()?.state === "running") evts.forEach((e) => document.removeEventListener(e, unlock)); };
+    evts.forEach((e) => document.addEventListener(e, unlock));
+    return () => evts.forEach((e) => document.removeEventListener(e, unlock));
   }, []);
 
   useEffect(() => {
