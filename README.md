@@ -45,7 +45,7 @@ Or run both detached in the background from the repo root (PIDs and logs in `.ru
 With `DATA_PROVIDER=kite`, set `KITE_API_KEY` / `KITE_API_SECRET`, point the Kite app's redirect URL at
 `http://localhost:8000/api/system/callback` (`/auth/callback` and `/api/auth/callback` also work), and press **CONNECT** each morning (Kite sessions expire daily).
 
-Share with friends (always-on service on the Mac, view-only over Tailscale): [deploy/macos/README.md](deploy/macos/README.md).
+Share with friends (always-on service on the Mac, view-only over Tailscale): [deploy/macos/README.md](deploy/macos/README.md). Day-to-day commands: [QUICK-START.md](QUICK-START.md).
 
 ### Tests
 
