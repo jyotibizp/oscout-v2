@@ -31,6 +31,9 @@ running_pid() {
   rm -f "$f" "$RUN_DIR/$1.port"; return 1
 }
 
+# launchd agent from deploy/macos (shares port 8000 with the dev backend).
+service_up() { launchctl print "gui/$(id -u)/com.oscout.backend" 2>/dev/null | grep -q 'state = running'; }
+
 port_owner() { lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1; }
 
 # pid plus all descendants (uvicorn --reload and vite spawn children).
@@ -47,6 +50,10 @@ start_one() {
     echo "$svc: already running (pid $pid, port $(live_port "$svc"))"; return 0
   fi
   owner="$(port_owner "$port")"
+  if [ "$svc" = backend ] && [ -n "$owner" ] && service_up; then
+    echo "backend: running as the always-on service (pid $owner), nothing to start. Code changes: deploy/macos/install.sh"
+    return 0
+  fi
   if [ -n "$owner" ]; then
     echo "$svc: port $port is in use by pid $owner ($(ps -o comm= -p "$owner")), not started" >&2
     return 1
@@ -105,7 +112,9 @@ status_one() {
     echo "$svc: running (pid $pid) http://localhost:$(live_port "$svc")  log: .run/$svc.log"
   else
     owner="$(port_owner "$port")"
-    if [ -n "$owner" ]; then
+    if [ "$svc" = backend ] && [ -n "$owner" ] && service_up; then
+      echo "backend: running as the always-on service (pid $owner) http://127.0.0.1:$port  log: .run/service.log"
+    elif [ -n "$owner" ]; then
       echo "$svc: not managed by dev.sh, but port $port is held by pid $owner"
     else
       echo "$svc: stopped"
