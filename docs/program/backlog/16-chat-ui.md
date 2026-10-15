@@ -8,7 +8,7 @@ Status: Groomed (15 Oct 2026) · Index: [BACKLOG.md](../../../BACKLOG.md) · Moc
 - One screen, three bands, no sidebar:
   - **Top:** today's header (connection, feeds, market, last/next scan, toggles, SCAN NOW). Unchanged.
   - **Live strip:** NIFTY / SENSEX mini-cards (state, gate dots, open trade R). Always visible; tap = "show NIFTY".
-  - **Feed:** chat-style thread of my asks and inline answers, newest at bottom.
+  - **Feed:** chat-style thread of my asks and inline answers, newest at bottom; answer cards use the full page width (tables, charts need it).
   - **Composer:** chips row + text box.
 - **Chips** (auto-suggested, ≤6, from current state, not AI):
   - Signal open → *Track NIFTY trade*, *Why this signal?*, *Chart NIFTY*.

@@ -27,7 +27,7 @@ header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:10px 
 .gates{display:flex;gap:4px;margin-top:6px}.g{width:22px;height:5px;border-radius:3px;background:var(--line)}
 .g.p{background:var(--good)}.g.w{background:var(--warn)}.g.f{background:var(--bad)}
 main{flex:1;overflow-y:auto;padding:16px}
-.feed{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.feed{display:flex;flex-direction:column;gap:14px}
 .ask{align-self:flex-end;background:var(--accent-soft);border:1px solid #463a73;border-radius:14px 14px 4px 14px;padding:6px 12px;max-width:80%}
 .ans{align-self:stretch;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .ans h4{margin:0 0 8px;font-size:13px;display:flex;align-items:center;gap:8px}
@@ -43,7 +43,7 @@ th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
 td{padding:6px 8px;border-bottom:1px solid rgba(58,58,58,.6);white-space:nowrap}
 .why{margin:10px 0 0;padding-left:18px;color:var(--faint);font-size:13px}
 .composer{border-top:1px solid var(--line);background:var(--panel);padding:10px 16px 14px}
-.composer .inner{max-width:860px;margin:0 auto}
+.composer .inner{}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .chip{background:transparent;color:var(--accent);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;cursor:pointer}
 .chip:hover{background:var(--raise)}.chip.hot{border-color:var(--accent);background:var(--accent-soft)}
@@ -51,7 +51,7 @@ td{padding:6px 8px;border-bottom:1px solid rgba(58,58,58,.6);white-space:nowrap}
 .box input{flex:1;background:var(--raise);border:1px solid var(--line);border-radius:999px;padding:9px 16px;color:var(--ink);font-size:14px}
 .box input:focus{outline:none;border-color:var(--accent)}
 .hint{font-size:11px;color:var(--faint);margin-top:6px}
-.note{max-width:860px;margin:0 auto 6px;font-size:11px;color:var(--faint);text-align:center}
+.note{margin:0 0 6px;font-size:11px;color:var(--faint);text-align:center}
 @media (max-width:640px){header .meta,header .pills{display:none}.mini{min-width:210px}}
 </style>
 </head>
