@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OSCOUT Chat UI Mock</title>
+<!-- Static mockup for backlog #16. Canned data, no API. Colors = frontend/tailwind.config.js -->
+<style>
+:root{--canvas:#121212;--panel:#1e1e1e;--raise:#2a2a2a;--line:#3a3a3a;--ink:#fff;--faint:#bdbdbd;--accent:#a99bff;--accent-strong:#6b4ef6;--accent-soft:#2d2546;--good:#3ecf8e;--warn:#f5b14c;--bad:#ff6b6b}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--canvas);color:var(--ink);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column}
+.num{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{font-weight:800;letter-spacing:.08em}.brand small{color:var(--faint);font-weight:500;margin-left:6px;font-size:11px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:6px}
+.pill{border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:12px;color:var(--faint)}
+.meta{font-size:12px;color:var(--faint)}.meta b{color:var(--ink)}
+.spacer{flex:1}
+.btnp{background:var(--accent-strong);color:#fff;border:0;border-radius:999px;padding:6px 18px;font-weight:600;cursor:pointer}
+.strip{display:flex;gap:10px;padding:10px 16px;overflow-x:auto;border-bottom:1px solid var(--line)}
+.mini{flex:0 0 auto;min-width:250px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 12px;cursor:pointer}
+.mini:hover{border-color:var(--accent)}
+.mini .row{display:flex;align-items:center;gap:8px}
+.tag{font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px}
+.t-sig{background:rgba(62,207,142,.15);color:var(--good)}.t-wait{background:rgba(245,177,76,.15);color:var(--warn)}
+.gates{display:flex;gap:4px;margin-top:6px}.g{width:22px;height:5px;border-radius:3px;background:var(--line)}
+.g.p{background:var(--good)}.g.w{background:var(--warn)}.g.f{background:var(--bad)}
+main{flex:1;overflow-y:auto;padding:16px}
+.feed{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.ask{align-self:flex-end;background:var(--accent-soft);border:1px solid #463a73;border-radius:14px 14px 4px 14px;padding:6px 12px;max-width:80%}
+.ans{align-self:stretch;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.ans h4{margin:0 0 8px;font-size:13px;display:flex;align-items:center;gap:8px}
+.ans h4 a{margin-left:auto;color:var(--accent);font-weight:500;font-size:12px;text-decoration:none}
+.sys{align-self:center;font-size:12px;color:var(--faint);border:1px dashed var(--line);border-radius:999px;padding:3px 12px}
+.sys b{color:var(--good)}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.kv div{background:var(--raise);border-radius:8px;padding:6px 8px}.kv span{display:block;font-size:11px;color:var(--faint)}
+.pipe{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;font-size:12px}
+.pipe span{border:1px solid var(--line);border-radius:6px;padding:2px 8px}.ok{color:var(--good)}.wt{color:var(--warn)}.bd{color:var(--bad)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:6px 8px;border-bottom:1px solid rgba(58,58,58,.6);white-space:nowrap}
+.why{margin:10px 0 0;padding-left:18px;color:var(--faint);font-size:13px}
+.composer{border-top:1px solid var(--line);background:var(--panel);padding:10px 16px 14px}
+.composer .inner{max-width:860px;margin:0 auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.chip{background:transparent;color:var(--accent);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;cursor:pointer}
+.chip:hover{background:var(--raise)}.chip.hot{border-color:var(--accent);background:var(--accent-soft)}
+.box{display:flex;gap:8px}
+.box input{flex:1;background:var(--raise);border:1px solid var(--line);border-radius:999px;padding:9px 16px;color:var(--ink);font-size:14px}
+.box input:focus{outline:none;border-color:var(--accent)}
+.hint{font-size:11px;color:var(--faint);margin-top:6px}
+.note{max-width:860px;margin:0 auto 6px;font-size:11px;color:var(--faint);text-align:center}
+@media (max-width:640px){header .meta,header .pills{display:none}.mini{min-width:210px}}
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">OSCOUT<small>ADX</small></span>
+  <span><span class="dot"></span>Connected <span class="pill">KITE</span></span>
+  <span class="pills"><span class="pill">NIFTY 5M ✓</span> <span class="pill">NIFTY 15M ✓</span> <span class="pill">SENSEX 5M ✓</span> <span class="pill">VIX ✓</span></span>
+  <span class="meta">Market <b style="color:var(--good)">OPEN</b> · Last scan <b class="num">10:20</b> · Next <b class="num">10:25</b></span>
+  <span class="spacer"></span>
+  <button class="btnp" onclick="ask('Scan now')">SCAN NOW</button>
+</header>
+
+<div class="strip">
+  <div class="mini" onclick="ask('Show NIFTY')">
+    <div class="row"><b>NIFTY</b><span class="num">25,184.30</span><span class="tag t-sig">CE ACTIVE</span><span class="num" style="margin-left:auto;color:var(--good)">+0.6R</span></div>
+    <div class="gates"><i class="g p"></i><i class="g p"></i><i class="g p"></i><i class="g p"></i></div>
+  </div>
+  <div class="mini" onclick="ask('What\'s pending on SENSEX?')">
+    <div class="row"><b>SENSEX</b><span class="num">82,410.75</span><span class="tag t-wait">WAITING 15M</span></div>
+    <div class="gates"><i class="g p"></i><i class="g w"></i><i class="g"></i><i class="g"></i></div>
+  </div>
+</div>
+
+<main><div class="feed" id="feed">
+  <div class="sys">10:15 · <b>NIFTY CALL BUY</b> signal generated</div>
+  <div class="ask">Why this signal?</div>
+  <div class="ans">
+    <h4>NIFTY · CALL BUY · 10:15 <a href="#">Live Signals ↗</a></h4>
+    <div class="kv">
+      <div><span>Entry</span><b class="num">25,142.0</b></div><div><span>Stop</span><b class="num">25,098.5</b></div>
+      <div><span>Target</span><b class="num">25,272.5</b></div><div><span>5M ADX</span><b class="num">28.4 ↑</b></div>
+      <div><span>15M ADX</span><b class="num">31.2 ↑</b></div><div><span>VIX</span><b class="num">14.8</b></div>
+    </div>
+    <div class="pipe"><span class="ok">Gate 1 ✓</span><span class="ok">15M ✓</span><span class="ok">ATR ✓ NORMAL</span><span class="ok">VIX ✓</span><span class="ok"><b>SIGNAL CE</b></span></div>
+    <ul class="why">
+      <li>5m ADX compressed below 20 for 9 candles, broke out +4.1 in 2 candles with +DI 27 over −DI 14.</li>
+      <li>15m ADX rising 4 of last 5 candles, +DI leading.</li>
+      <li>Move so far 0.8× ATR (limit 1.5×); VIX 14.8 inside 11–22.</li>
+    </ul>
+  </div>
+  <div class="ask">Trades this week</div>
+  <div class="ans">
+    <h4>Trades · 13–15 Oct · 5 trades · +1.4R <a href="#">Trades ↗</a></h4>
+    <table><thead><tr><th>Entry</th><th>Symbol</th><th>Dir</th><th>Exit</th><th>R</th></tr></thead><tbody>
+      <tr><td class="num">15 Oct 10:15</td><td>NIFTY</td><td>CE</td><td>open</td><td class="num ok">+0.6</td></tr>
+      <tr><td class="num">14 Oct 13:40</td><td>SENSEX</td><td>PE</td><td>ADX exhaustion</td><td class="num ok">+1.2</td></tr>
+      <tr><td class="num">14 Oct 10:05</td><td>NIFTY</td><td>PE</td><td>Stop</td><td class="num bd">−1.0</td></tr>
+      <tr><td class="num">13 Oct 11:25</td><td>NIFTY</td><td>CE</td><td>Target</td><td class="num ok">+1.5</td></tr>
+      <tr><td class="num">13 Oct 09:50</td><td>SENSEX</td><td>CE</td><td>ADX exhaustion</td><td class="num bd">−0.9</td></tr>
+    </tbody></table>
+  </div>
+</div></main>
+
+<div class="composer"><div class="inner">
+  <div class="note">Mockup for backlog #16 · canned data · chips are picked from live state, not AI</div>
+  <div class="chips" id="chips"></div>
+  <form class="box" onsubmit="event.preventDefault();const i=this.q;if(i.value.trim()){ask(i.value.trim());i.value=''}">
+    <input name="q" placeholder="Ask: nifty, why, history yesterday, trades this week, health…  ( / for commands )" autocomplete="off">
+    <button class="btnp" type="submit">Ask</button>
+  </form>
+  <div class="hint">Every answer has ↗ to its full page. Pages remain as routes; the sidebar is gone.</div>
+</div></div>
+
+<script>
+const CHIPS=[["Track NIFTY trade",1],["Chart NIFTY",1],["What's pending on SENSEX?",0],["Signal history today",0],["Performance this week",0],["Data health",0]];
+const A={
+ "track nifty trade":`<h4>NIFTY CE · tracking <a href="#">Live Signals ↗</a></h4><div class="kv"><div><span>Price</span><b class="num">25,184.3</b></div><div><span>P&L</span><b class="num ok">+42.3 pts · +0.6R</b></div><div><span>To stop</span><b class="num">85.8</b></div><div><span>To target</span><b class="num">88.2</b></div><div><span>ADX / peak</span><b class="num">29.6 / 30.1</b></div><div><span>Verdict</span><b class="ok">HOLD</b></div></div>`,
+ "chart nifty":`<h4>NIFTY 5m <a href="#">Chart ↗</a></h4><svg viewBox="0 0 600 120" width="100%" height="120"><polyline fill="none" stroke="#a99bff" stroke-width="2" points="0,90 40,88 80,92 120,86 160,89 200,84 240,80 280,64 320,58 360,50 400,46 440,40 480,44 520,36 560,32 600,30"/><line x1="0" x2="600" y1="70" y2="70" stroke="#ebebeb" stroke-dasharray="4 4" stroke-opacity=".5"/><line x1="0" x2="600" y1="96" y2="96" stroke="#ff6b6b" stroke-dasharray="4 4"/><line x1="0" x2="600" y1="18" y2="18" stroke="#3ecf8e" stroke-dasharray="4 4"/></svg><div class="hint">Entry / stop / target lines, breakout and signal markers (#11).</div>`,
+ "what's pending on sensex?":`<h4>SENSEX · waiting for 15m confirmation <a href="#">Dashboard ↗</a></h4><div class="pipe"><span class="ok">Gate 1 ✓</span><span class="wt">15M … 2 of 3 rising</span><span>ATR —</span><span>VIX —</span></div><ul class="why"><li>Breakout at 10:10 (PE side, −DI 26 over +DI 15).</li><li>15m ADX needs one more rising candle; earliest signal 10:30.</li></ul>`,
+ "signal history today":`<h4>Signals · today · 2 <a href="#">Signal History ↗</a></h4><table><thead><tr><th>Time</th><th>Symbol</th><th>Dir</th><th>Result</th><th>Status</th></tr></thead><tbody><tr><td class="num">10:15</td><td>NIFTY</td><td>CE</td><td class="ok">SIGNAL</td><td>ACTIVE</td></tr><tr><td class="num">09:45</td><td>SENSEX</td><td>CE</td><td class="bd">REJECTED · ATR exhausted</td><td>—</td></tr></tbody></table>`,
+ "performance this week":`<h4>Performance · this week <a href="#">Overview ↗</a></h4><div class="kv"><div><span>Trades</span><b class="num">5</b></div><div><span>Win rate</span><b class="num">60%</b></div><div><span>Avg R</span><b class="num ok">+0.28</b></div><div><span>Profit factor</span><b class="num">1.7</b></div><div><span>Max DD</span><b class="num">−1.9R</b></div></div>`,
+ "data health":`<h4>Data health <a href="#">Data Health ↗</a></h4><table><tbody><tr><td>NIFTY 5M</td><td class="ok">HEALTHY</td><td class="num">10:20</td></tr><tr><td>NIFTY 15M</td><td class="ok">HEALTHY</td><td class="num">10:15</td></tr><tr><td>SENSEX 5M</td><td class="ok">HEALTHY</td><td class="num">10:20</td></tr><tr><td>INDIA VIX</td><td class="ok">HEALTHY</td><td class="num">10:20</td></tr></tbody></table>`,
+ "scan now":`<h4>Scan #812 · OK · 10:22</h4><div class="pipe"><span>NIFTY: ACTIVE, hold</span><span>SENSEX: waiting 15m</span></div>`,
+ "show nifty":null,
+};
+A["show nifty"]=A["track nifty trade"];
+function route(q){const k=q.toLowerCase().trim();if(A[k])return A[k];
+ if(/health|feed|stale/.test(k))return A["data health"];if(/perf|week|win/.test(k))return A["performance this week"];
+ if(/history|signals/.test(k))return A["signal history today"];if(/sensex|pending/.test(k))return A["what's pending on sensex?"];
+ if(/chart/.test(k))return A["chart nifty"];if(/nifty|track|trade/.test(k))return A["track nifty trade"];
+ return `<h4>Didn't catch that</h4><div class="hint">Try one of the chips, or type / for the command list.</div>`}
+function ask(q){const f=document.getElementById('feed');
+ f.insertAdjacentHTML('beforeend',`<div class="ask">${q.replace(/</g,'&lt;')}</div><div class="ans">${route(q)}</div>`);
+ document.querySelector('main').scrollTop=1e9}
+document.getElementById('chips').innerHTML=CHIPS.map(([c,h])=>`<button class="chip${h?' hot':''}" onclick="ask(this.textContent)">${c}</button>`).join('');
+document.querySelector('main').scrollTop=1e9;
+</script>
+</body>
+</html>
