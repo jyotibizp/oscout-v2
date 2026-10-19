@@ -11,4 +11,4 @@ PM documents: vision, users, decisions, roadmap notes. One topic per file.
 - Name files `NN-topic.md`; add a line below when you add one.
 
 ## Index
-- (none yet)
+- [01-roadmap.md](01-roadmap.md): upcoming modules
