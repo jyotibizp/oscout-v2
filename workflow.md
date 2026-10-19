@@ -1130,7 +1130,7 @@ Do NOT add:
 - Portfolio management
 - Multi-strategy framework
 - Social features
-- Chatbot
+- Chatbot (exception: read-only explainer, backlog #12)
 - Complex user-management system
 
 This is intentionally a **single-strategy ADX micro-SaaS**.
