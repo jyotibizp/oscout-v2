@@ -49,11 +49,19 @@ class AutoScanner:
             run, created = run_scan(db, get_provider(), trigger="AUTO")
             return f"#{run.id} {run.status}" if created else f"#{run.id} already scanned"
 
+    @staticmethod
+    async def _sleep_until(target: datetime, nap: float = 15.0):
+        """Short naps checked against the wall clock. One long asyncio.sleep (e.g. 15:30 -> 09:20) runs on the
+        monotonic clock, which on macOS stops while the machine sleeps, so the first scan overshoots by hours."""
+        while (left := (target - now_utc()).total_seconds()) > 0:
+            await asyncio.sleep(min(left, nap))
+        await asyncio.sleep(0)
+
     async def _loop(self):
         while True:
             try:
                 self.next_run = self.compute_next()
-                await asyncio.sleep(max((self.next_run - now_utc()).total_seconds(), 0.5))
+                await self._sleep_until(self.next_run)
                 sc = self._cfg()
                 boundary = self.next_run - timedelta(seconds=sc.scan_delay_seconds) - timedelta(seconds=1)
                 if not self.enabled() or (sc.market_hours_only and not is_market_open(boundary)):
