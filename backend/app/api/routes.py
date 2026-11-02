@@ -327,8 +327,8 @@ def config_versions(db: Session = Depends(get_db)):
 # ---------------- performance ----------------
 @router.get("/performance/summary")
 def perf_summary(symbol: str | None = None, version: str | None = None, exclude_late: bool = False,
-                 db: Session = Depends(get_db)):
-    return metrics.summary(db, symbol, version, exclude_late)
+                 date_from: date | None = None, date_to: date | None = None, db: Session = Depends(get_db)):
+    return metrics.summary(db, symbol, version, exclude_late, *_day_range(date_from, date_to))
 
 
 @router.get("/performance/trades")
@@ -345,13 +345,15 @@ def perf_trades(symbol: str | None = None, direction: str | None = None, status:
 
 
 @router.get("/performance/equity")
-def perf_equity(symbol: str | None = None, exclude_late: bool = False, db: Session = Depends(get_db)):
-    return metrics.equity_curve(db, symbol, exclude_late)
+def perf_equity(symbol: str | None = None, exclude_late: bool = False, date_from: date | None = None,
+                date_to: date | None = None, db: Session = Depends(get_db)):
+    return metrics.equity_curve(db, symbol, exclude_late, *_day_range(date_from, date_to))
 
 
 @router.get("/performance/analytics")
-def perf_analytics(exclude_late: bool = False, db: Session = Depends(get_db)):
-    return metrics.analytics(db, exclude_late)
+def perf_analytics(exclude_late: bool = False, date_from: date | None = None, date_to: date | None = None,
+                   db: Session = Depends(get_db)):
+    return metrics.analytics(db, exclude_late, *_day_range(date_from, date_to))
 
 
 # ---------------- system ----------------

@@ -1,6 +1,6 @@
 import { useSymbols } from "../lib/symbols";
 import { useState } from "react";
-import { api } from "../api/client";
+import { api, PerfRange } from "../api/client";
 import { BarList, LineChart } from "../components/Charts";
 import { SignalDetailDrawer } from "../components/Details";
 import { Badge, Dir, Empty, ErrorNote, PageHeader, Stat } from "../components/ui";
@@ -9,9 +9,11 @@ import { useApi } from "../lib/hooks";
 
 export function PerformanceOverview() {
   const [noLate, setNoLate] = useState(false);
-  const sum = useApi(() => api.summary(undefined, noLate), [noLate], 60000);
-  const eq = useApi(() => api.equity(noLate), [noLate], 60000);
-  const an = useApi(() => api.analytics(noLate), [noLate], 60000);
+  const [rg, setRg] = useState<PerfRange>({});
+  const k = [noLate, rg.date_from, rg.date_to];
+  const sum = useApi(() => api.summary(undefined, noLate, rg), k, 60000);
+  const eq = useApi(() => api.equity(noLate, rg), k, 60000);
+  const an = useApi(() => api.analytics(noLate, rg), k, 60000);
   const t = sum.data?.trading;
   const s = sum.data?.signals;
   const fu = sum.data?.funnel;
@@ -19,7 +21,13 @@ export function PerformanceOverview() {
   return (
     <div>
       <PageHeader title="Performance" sub="Measured on the underlying index move (points / R), per closed signal"
-        right={<label className="flex items-center gap-2 text-sm text-ink-soft"><input type="checkbox" checked={noLate} onChange={(e) => setNoLate(e.target.checked)} />Excluding late (gap-filled) signals</label>} />
+        right={<div className="flex flex-wrap items-center gap-2 text-sm text-ink-soft">
+          <input type="date" aria-label="From" className="input" value={rg.date_from ?? ""} onChange={(e) => setRg({ ...rg, date_from: e.target.value || undefined })} />
+          <span>to</span>
+          <input type="date" aria-label="To" className="input" value={rg.date_to ?? ""} onChange={(e) => setRg({ ...rg, date_to: e.target.value || undefined })} />
+          {(rg.date_from || rg.date_to) && <button className="btn !px-3 !py-1" onClick={() => setRg({})}>All time</button>}
+          <label className="flex items-center gap-2 ml-2"><input type="checkbox" checked={noLate} onChange={(e) => setNoLate(e.target.checked)} />Excluding late (gap-filled) signals</label>
+        </div>} />
       <ErrorNote error={sum.error} />
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-5">
         <Stat label="Signals" value={s?.total_signals ?? "—"} sub={`${s?.call_signals ?? 0} CALL · ${s?.put_signals ?? 0} PUT`} />
@@ -108,7 +116,7 @@ const DIMS: { key: string; title: string }[] = [
 ];
 
 export function Analytics() {
-  const { data, error } = useApi(api.analytics, [], 60000);
+  const { data, error } = useApi(() => api.analytics(), [], 60000);
   return (
     <div>
       <PageHeader title="Analytics" sub="Closed trades broken down by the strategy's own dimensions" />

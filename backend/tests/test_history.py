@@ -50,3 +50,24 @@ def test_history_api_validates_range():
     c = client_at("127.0.0.1")
     assert c.post("/api/market/history", json={"from": "2020-01-01"}).status_code == 400
     assert client_at("100.64.0.9").post("/api/market/history", json={"from": "2026-10-01"}).status_code in (401, 403)
+
+
+def test_performance_date_range(db):
+    from app.db.models import SignalSetup, Trade
+    row, _ = store.get_active(db)
+    for i, day in enumerate((ist(2026, 9, 10, 10, 0), ist(2026, 10, 10, 10, 0))):
+        s = SignalSetup(symbol="NIFTY", direction="CALL", state="EXIT_TRIGGERED", breakout_ts=day, detected_at=day, breakout={},
+                        config_id=row.id, config_version=row.version, signal_ts=day)
+        db.add(s)
+        db.flush()
+        db.add(Trade(setup_id=s.id, symbol="NIFTY", direction="CALL", status="CLOSED", entry_ts=day, entry_price=100,
+                     exit_ts=day + timedelta(minutes=30), exit_price=110 + i, pnl_points=10 + i, r_multiple=1 + i,
+                     risk_points=10, config_version=row.version))
+    db.commit()
+    c = client_at("127.0.0.1")
+    assert c.get("/api/performance/summary").json()["trading"]["trades"] == 2
+    oct_ = {"date_from": "2026-10-01", "date_to": "2026-10-31"}
+    s = c.get("/api/performance/summary", params=oct_).json()
+    assert s["trading"]["trades"] == 1 and s["trading"]["net_points"] == 11 and s["signals"]["total_signals"] == 1
+    assert len(c.get("/api/performance/equity", params=oct_).json()) == 1
+    assert sum(b["trades"] for b in c.get("/api/performance/analytics", params=oct_).json()["symbol"]) == 1

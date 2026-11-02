@@ -56,6 +56,7 @@ export interface GapBlock { id: string; date: string; start: string; end: string
 export interface Gaps { from: string; to: string; total_missing: number; days: { date: string; expected: number; missing: number }[]; no_data_days: string[]; blocks: GapBlock[]; replay_pending?: number; candles_from?: string | null }
 export interface GapFillResult { id: string; status: "FILLED" | "SKIPPED" | "NO_DATA"; mode?: "FULL" | "REPLAY" | "RECORD_ONLY"; scans?: number; signals?: number; blocked?: number; missed?: number; message?: string }
 export interface HistoryResult { symbol: string; status: "LOADED" | "UP_TO_DATE" | "SKIPPED"; inserted_5m?: number; from?: string; message?: string }
+export interface PerfRange { date_from?: string; date_to?: string }
 export interface ReplayResult { breakouts: number; signals: number; blocked: number; skipped: number }
 export interface ScanRun { id: number; trigger: string; candle_ts: string | null; started_at: string; finished_at: string | null; status: string; config_version: string; summary: any }
 export interface Trade {
@@ -115,8 +116,8 @@ export const api = {
   saveConfig: (params: ConfigResp["params"], note?: string) => req<{ version: string; changed: { group: string; key: string; old: any; new: any }[]; message?: string }>("/api/config", { method: "PUT", body: JSON.stringify({ params, note }) }),
   resetConfig: () => req<{ version: string }>("/api/config/reset", { method: "POST" }),
   configVersions: () => req<{ id: number; version: string; is_active: boolean; note: string | null; created_at: string }[]>("/api/config/versions"),
-  summary: (symbol?: string, exclude_late?: boolean) => req<Summary>(`/api/performance/summary${qs({ symbol, exclude_late: exclude_late ? "true" : undefined })}`),
+  summary: (symbol?: string, exclude_late?: boolean, r: PerfRange = {}) => req<Summary>(`/api/performance/summary${qs({ symbol, exclude_late: exclude_late ? "true" : undefined, ...r })}`),
   trades: (p: Record<string, string | undefined> = {}) => req<Trade[]>(`/api/performance/trades${qs(p)}`),
-  equity: (exclude_late?: boolean) => req<{ ts: string; symbol: string; pnl_points: number; cum_points: number; r: number | null; cum_r: number }[]>(`/api/performance/equity${qs({ exclude_late: exclude_late ? "true" : undefined })}`),
-  analytics: (exclude_late?: boolean) => req<Record<string, any[]>>(`/api/performance/analytics${qs({ exclude_late: exclude_late ? "true" : undefined })}`),
+  equity: (exclude_late?: boolean, r: PerfRange = {}) => req<{ ts: string; symbol: string; pnl_points: number; cum_points: number; r: number | null; cum_r: number }[]>(`/api/performance/equity${qs({ exclude_late: exclude_late ? "true" : undefined, ...r })}`),
+  analytics: (exclude_late?: boolean, r: PerfRange = {}) => req<Record<string, any[]>>(`/api/performance/analytics${qs({ exclude_late: exclude_late ? "true" : undefined, ...r })}`),
 };

@@ -8,8 +8,18 @@ from app.core.clock import to_ist
 from app.db.models import ScanResult, ScanRun, SignalSetup, Trade
 
 
-def _trades(db: Session, symbol: str | None = None, version: str | None = None, exclude_late: bool = False) -> list[Trade]:
-    q = select(Trade).where(Trade.status == "CLOSED")
+def _in(q, col, lo, hi):
+    if lo is not None:
+        q = q.where(col >= lo)
+    if hi is not None:
+        q = q.where(col <= hi)
+    return q
+
+
+def _trades(db: Session, symbol: str | None = None, version: str | None = None, exclude_late: bool = False,
+            lo=None, hi=None) -> list[Trade]:
+    """Closed trades; lo / hi filter on entry time (UTC)."""
+    q = _in(select(Trade).where(Trade.status == "CLOSED"), Trade.entry_ts, lo, hi)
     if exclude_late:
         from app.scanner.gaps import late_setup_ids
         late = late_setup_ids(db)
@@ -48,37 +58,40 @@ def trade_stats(ts: list[Trade]) -> dict:
             "avg_holding_minutes": round(sum(t.holding_minutes or 0 for t in ts) / n, 1)}
 
 
-def summary(db: Session, symbol: str | None = None, version: str | None = None, exclude_late: bool = False) -> dict:
-    ts = _trades(db, symbol, version, exclude_late)
+def summary(db: Session, symbol: str | None = None, version: str | None = None, exclude_late: bool = False,
+            lo=None, hi=None) -> dict:
+    ts = _trades(db, symbol, version, exclude_late, lo, hi)
     scans = db.scalar(select(func.count()).select_from(ScanRun)) or 0
     setups = db.scalar(select(func.count()).select_from(SignalSetup)) or 0
-    sig_q = select(SignalSetup.direction, func.count()).where(SignalSetup.signal_ts.is_not(None)).group_by(SignalSetup.direction)
+    sig_q = _in(select(SignalSetup.direction, func.count()).where(SignalSetup.signal_ts.is_not(None)),
+                SignalSetup.signal_ts, lo, hi).group_by(SignalSetup.direction)
     by_dir = dict(db.execute(sig_q).all())
     rejected = db.scalar(select(func.count()).select_from(SignalSetup).where(SignalSetup.state.in_(("REJECTED", "EXPIRED")))) or 0
     open_trades = db.scalar(select(func.count()).select_from(Trade).where(Trade.status == "OPEN")) or 0
     return {"signals": {"total_scans": scans, "total_setups": setups, "total_signals": sum(by_dir.values()),
                         "call_signals": by_dir.get("CALL", 0), "put_signals": by_dir.get("PUT", 0),
                         "rejected_or_expired_setups": rejected, "open_trades": open_trades},
-            "trading": trade_stats(ts), "funnel": funnel(db)}
+            "trading": trade_stats(ts), "funnel": funnel(db, lo, hi)}
 
 
-def funnel(db: Session) -> dict:
-    """Gate-wise outcome of every symbol evaluation (scan_results)."""
-    total = db.scalar(select(func.count()).select_from(ScanResult)) or 0
-    g1 = db.scalar(select(func.count()).select_from(ScanResult).where(ScanResult.gate1 == "PASS")) or 0
-    g2 = db.scalar(select(func.count()).select_from(ScanResult).where(ScanResult.gate2 == "PASS")) or 0
-    atr = db.scalar(select(func.count()).select_from(ScanResult).where(ScanResult.gate2 == "PASS", ScanResult.atr_filter == "PASS")) or 0
-    vix = db.scalar(select(func.count()).select_from(ScanResult).where(ScanResult.atr_filter == "PASS", ScanResult.vix_filter == "PASS", ScanResult.gate2 == "PASS")) or 0
-    sig = db.scalar(select(func.count()).select_from(ScanResult).where(ScanResult.final_result == "SIGNAL")) or 0
+def funnel(db: Session, lo=None, hi=None) -> dict:
+    """Gate-wise outcome of every symbol evaluation (scan_results), by candle time."""
+    base = _in(select(func.count()).select_from(ScanResult), ScanResult.candle_ts, lo, hi)
+    total = db.scalar(base) or 0
+    g1 = db.scalar(base.where(ScanResult.gate1 == "PASS")) or 0
+    g2 = db.scalar(base.where(ScanResult.gate2 == "PASS")) or 0
+    atr = db.scalar(base.where(ScanResult.gate2 == "PASS", ScanResult.atr_filter == "PASS")) or 0
+    vix = db.scalar(base.where(ScanResult.atr_filter == "PASS", ScanResult.vix_filter == "PASS", ScanResult.gate2 == "PASS")) or 0
+    sig = db.scalar(base.where(ScanResult.final_result == "SIGNAL")) or 0
     def rate(a, b):
         return round(100 * (1 - a / b), 1) if b else None
     return {"evaluations": total, "gate1_pass": g1, "gate2_pass": g2, "atr_pass": atr, "vix_pass": vix, "signals": sig,
             "rejection_rate": {"gate1": rate(g1, total), "gate2": rate(g2, g1), "atr": rate(atr, g2), "vix": rate(vix, atr)}}
 
 
-def equity_curve(db: Session, symbol: str | None = None, exclude_late: bool = False) -> list[dict]:
+def equity_curve(db: Session, symbol: str | None = None, exclude_late: bool = False, lo=None, hi=None) -> list[dict]:
     out, eq, eqr = [], 0.0, 0.0
-    for t in _trades(db, symbol, exclude_late=exclude_late):
+    for t in _trades(db, symbol, exclude_late=exclude_late, lo=lo, hi=hi):
         eq += t.pnl_points
         eqr += t.r_multiple or 0
         out.append({"ts": t.exit_ts.isoformat(), "symbol": t.symbol, "pnl_points": t.pnl_points, "cum_points": round(eq, 2),
@@ -95,8 +108,8 @@ def _bucket(v, edges, labels):
     return labels[-1]
 
 
-def analytics(db: Session, exclude_late: bool = False) -> dict:
-    ts = _trades(db, exclude_late=exclude_late)
+def analytics(db: Session, exclude_late: bool = False, lo=None, hi=None) -> dict:
+    ts = _trades(db, exclude_late=exclude_late, lo=lo, hi=hi)
     dims = {
         "symbol": lambda t: t.symbol,
         "direction": lambda t: t.direction,
@@ -119,7 +132,7 @@ def analytics(db: Session, exclude_late: bool = False) -> dict:
         hist[max(-3.0, min(3.0, round(r * 2) / 2))] += 1
     out["r_distribution"] = [{"r": k, "count": v} for k, v in sorted(hist.items())]
     sig_hours = defaultdict(int)
-    for s in db.scalars(select(SignalSetup).where(SignalSetup.signal_ts.is_not(None))):
+    for s in db.scalars(_in(select(SignalSetup).where(SignalSetup.signal_ts.is_not(None)), SignalSetup.signal_ts, lo, hi)):
         sig_hours[f"{to_ist(s.signal_ts):%H}:00"] += 1
     out["signals_by_hour"] = [{"hour": k, "count": v} for k, v in sorted(sig_hours.items())]
     return out
