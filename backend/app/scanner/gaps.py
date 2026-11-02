@@ -37,12 +37,19 @@ def _expected(d: date, last_done: datetime) -> list[datetime]:
 
 
 def _data_ts(db: Session, lo: datetime, hi: datetime) -> set[datetime]:
-    """Candles every tradable index has stored."""
-    sets = []
-    for sym in TRADABLE:
-        sets.append({_utc(t) for t in db.scalars(select(MarketCandle.ts).where(
-            MarketCandle.symbol == sym, MarketCandle.timeframe == "5m", MarketCandle.ts >= lo, MarketCandle.ts <= hi))})
-    return set.intersection(*sets) if sets else set()
+    """Candles every tradable index has stored, per day. An index with no candles at all that day (added later,
+    e.g. BANKNIFTY before its first sync) is left out of that day's check instead of blanking every block."""
+    per_sym = [{_utc(t) for t in db.scalars(select(MarketCandle.ts).where(
+        MarketCandle.symbol == sym, MarketCandle.timeframe == "5m", MarketCandle.ts >= lo, MarketCandle.ts <= hi))}
+        for sym in TRADABLE]
+    by_day: dict = {}
+    for ts_set in per_sym:
+        days: dict = {}
+        for t in ts_set:
+            days.setdefault(to_ist(t).date(), set()).add(t)
+        for d, ts in days.items():
+            by_day[d] = ts if d not in by_day else by_day[d] & ts
+    return set().union(*by_day.values()) if by_day else set()
 
 
 @dataclass

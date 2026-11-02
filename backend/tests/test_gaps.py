@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 
 from app.core.clock import as_utc, session_open
-from app.db.models import ScanResult, ScanRun, SignalEvent, SignalSetup, Trade
+from app.db.models import MarketCandle, ScanResult, ScanRun, SignalEvent, SignalSetup, Trade
 from app.db.session import Base, SessionLocal, reset_engine
 from app.market.factory import set_provider
 from app.market.providers import MockProvider
@@ -129,3 +129,13 @@ def test_manual_scan_inside_a_gap_makes_it_interior(db):
     _cover(db, set(c[69:]))
     run_scan(db, p, "MANUAL", c[74] + STEP + timedelta(seconds=20), ingest=False)
     assert [b["type"] for b in gaps.find(db, DAY, DAY, NOW)["blocks"]] == ["INTERIOR"]
+
+
+def test_index_without_candles_that_day_does_not_blank_the_data_check(db):
+    p = MockProvider()
+    _ingest(db, p)
+    db.query(MarketCandle).filter(MarketCandle.symbol == "BANKNIFTY").delete()  # added later: no history yet
+    db.commit()
+    c = _candles()
+    _cover(db, set(c[9:12]))
+    assert [b["data"] for b in gaps.find(db, DAY, DAY, NOW)["blocks"]] == ["FULL"]
