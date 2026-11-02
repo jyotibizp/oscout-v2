@@ -6,7 +6,7 @@ Build order (2 Nov 2026): #19 → #11 → #15 → #2 → **#1 (next)** → #8 �
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| 1 | Option entry, stop and target (0.70 delta) | Groomed (2 Nov 2026), next | Per signal: strike nearest 0.70 delta, premium entry / stop / target, option R at exit beside index R. Open questions in spec: [01-option-levels.md](docs/program/backlog/01-option-levels.md). |
+| 1 | Option entry, stop and target (0.70 delta) | Groomed (2 Nov 2026), ready, next | Per signal: strike nearest 0.70 delta, premium entry / stop / target, option R at exit beside index R. Costs 1/3/2 pts. Spec: [01-option-levels.md](docs/program/backlog/01-option-levels.md). |
 | 2 | Scan gaps page (user-driven backfill) | Done (2 Nov 2026) | Page lists missing scan blocks (total, per block candle count) and fills the ones I select; latest block full fill, interior blocks record-only; no auto fill. Spec: [02-scan-backfill.md](docs/program/backlog/02-scan-backfill.md). |
 | 3 | Breakout pre-alert | Backlog | Mid-candle "breakout forming" heads-up when the forming 5m candle would meet the breakout rule; the real signal still waits for the candle close. |
 | 4 | Leading indicator: Bollinger squeeze | Backlog | Bollinger Bands inside Keltner Channels flags compression before ADX drops. Feeds the pre-alert (#3); keep only if the replay shows a gain. |

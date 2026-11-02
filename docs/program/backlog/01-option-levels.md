@@ -1,6 +1,6 @@
 # #1 Option entry, stop and target per signal (0.70 delta)
 
-Status: Groomed (2 Nov 2026), next to build · Index: [BACKLOG.md](../../../BACKLOG.md)
+Status: Groomed (2 Nov 2026), ready, next to build · Index: [BACKLOG.md](../../../BACKLOG.md)
 
 **Why:** R is measured on index points today. The trade is an option, so I need entry / stop / target on the option premium and the real option R.
 
@@ -13,16 +13,25 @@ Status: Groomed (2 Nov 2026), next to build · Index: [BACKLOG.md](../../../BACK
 
 **Out of scope:** placing orders, position sizing (#5), multi-leg.
 
-**Open questions (need your answers before build)**
-1. Expiry: current weekly; switch to next weekly on expiry day (or < 1 day left)?
-2. Stop / target premium: (a) re-price with Black-Scholes at the index stop / target (same IV, time left), (b) entry ± delta × index points, (c) keep index levels and just record the real premium when the index hits them. My pick: (a) for levels shown, (c) for the recorded exit.
-3. Exit trigger stays on the index (stop / target / ADX exit), or should premium levels trigger exits?
-4. Option costs: one brokerage + slippage figure for the whole traded position (not per lot), per trade (pradeep 2 Nov). Amount: ?
-5. Past signals: options history for expired contracts isn't on Kite, so modelled with IV from VIX. OK?
+**Agreed (2 Nov 2026)**
+1. Expiry: current weekly; on expiry day roll to the next weekly (BANKNIFTY: monthly).
+2. Premium stop / target: Black-Scholes re-price at the index stop / target (entry IV, time left). Recorded exit = real premium when the index exit fires.
+3. Exits stay on the index (stop / target / ADX exit); premium levels don't trigger exits.
+4. Costs per trade in premium points: NIFTY 1, SENSEX 3, BANKNIFTY 2 (one figure per trade, simple for now).
+5. Past / late / gap-filled signals: modelled (Black-Scholes, IV from India VIX), marked MODELLED.
+
+**Build notes (next session)**
+- New table `option_legs` (one per setup): option, strike, expiry, source LIVE|MODELLED, iv, delta, entry / stop / target / exit premium, exit_source, cost, pnl, option R. Migration 0002; SQLite gets it via create_all.
+- Option R = (exit − entry − cost) / (entry − stop premium).
+- Live entry: real-time AUTO/MANUAL scan → chain (#15 build) strike nearest 0.70 delta, LTP. Needs `option_chain(..., min_expiry)` for the expiry-day roll.
+- Live exit: chain LTP for that strike / expiry at the exit scan; else modelled.
+- One sync step at the end of each scan: open legs for signals without one, close legs of exited signals. Never fails a scan. Covers live, late, replayed and history.
+- Modelled expiry rule: NIFTY Tue, SENSEX Thu weekly, BANKNIFTY last Tue monthly (holiday shifts ignored).
+- UI: card + Signal History show option, strike, Δ, premium E / SL / T; Trades: option P&L and R; Performance: Option R stats beside index R.
 
 **Acceptance**
 - Each new signal stores strike / delta / premium entry, stop, target; delta within ±0.05 of 0.70 when the chain allows.
 - Closed trades show option R; Performance can switch index R / option R.
 - pytest: strike pick, premium levels, option R; vitest: card + trades show premium levels.
 
-**Estimate:** ~1 day after the questions are answered.
+**Estimate:** ~1 day.
