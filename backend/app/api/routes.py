@@ -18,7 +18,7 @@ from app.market import health
 from app.market.factory import get_provider, save_token
 from app.market.providers import AuthError, ProviderError
 from app.market.repository import load_bars
-from app.market.symbols import TRADABLE
+from app.market.symbols import TRADABLE, testing_symbols
 from app.options import chain as option_chain
 from app.performance import metrics
 from app.scanner.scheduler import auto_scanner
@@ -38,6 +38,12 @@ def _day_range(d_from: date | None, d_to: date | None):
 
 
 # ---------------- market ----------------
+@router.get("/market/symbols")
+def market_symbols():
+    t = testing_symbols()
+    return [{"symbol": s, "testing": s in t} for s in TRADABLE]
+
+
 @router.get("/market/candles")
 def candles(symbol: str, timeframe: str = "5m", limit: int = Query(150, le=1000), db: Session = Depends(get_db)):
     _, cfg = store.get_active(db)

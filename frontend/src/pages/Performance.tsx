@@ -1,3 +1,4 @@
+import { useSymbols } from "../lib/symbols";
 import { useState } from "react";
 import { api } from "../api/client";
 import { BarList, LineChart } from "../components/Charts";
@@ -54,7 +55,7 @@ export function PerformanceOverview() {
           <BarList rows={(an.data?.signals_by_hour ?? []).map((r: any) => ({ label: r.hour, value: r.count }))} />
         </div>
         <div className="card p-4">
-          <div className="text-xs uppercase tracking-widest text-ink-faint mb-3">NIFTY vs SENSEX · CALL vs PUT (net pts)</div>
+          <div className="text-xs uppercase tracking-widest text-ink-faint mb-3">By index · CALL vs PUT (net pts)</div>
           <BarList signedColors format={(v) => signed(v)} rows={[...bucket("symbol"), ...bucket("direction")]} />
         </div>
       </div>
@@ -63,13 +64,14 @@ export function PerformanceOverview() {
 }
 
 export function Trades() {
+  const symbols = useSymbols();
   const [sym, setSym] = useState("");
   const { data, error } = useApi(() => api.trades({ symbol: sym || undefined }), [sym], 60000);
   const [open, setOpen] = useState<number | null>(null);
   return (
     <div>
       <PageHeader title="Trades" sub="One trade per generated signal (underlying entry → exit)"
-        right={<select className="input" value={sym} onChange={(e) => setSym(e.target.value)}><option value="">All symbols</option><option>NIFTY</option><option>SENSEX</option></select>} />
+        right={<select className="input" value={sym} onChange={(e) => setSym(e.target.value)}><option value="">All symbols</option>{symbols.map((x) => <option key={x.symbol}>{x.symbol}</option>)}</select>} />
       <ErrorNote error={error} />
       {data && data.length === 0 ? <Empty>No trades yet</Empty> : (
         <div className="card overflow-x-auto">
@@ -98,7 +100,7 @@ export function Trades() {
 }
 
 const DIMS: { key: string; title: string }[] = [
-  { key: "symbol", title: "NIFTY vs SENSEX" }, { key: "direction", title: "CALL vs PUT" }, { key: "hour", title: "Time of day (IST)" },
+  { key: "symbol", title: "By index" }, { key: "direction", title: "CALL vs PUT" }, { key: "hour", title: "Time of day (IST)" },
   { key: "weekday", title: "Day of week" }, { key: "breakout_strength", title: "5m ADX breakout strength (pts)" },
   { key: "adx15", title: "15m ADX at entry" }, { key: "atr_status", title: "ATR state" }, { key: "vix_regime", title: "VIX regime" },
 ];

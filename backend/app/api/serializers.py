@@ -1,4 +1,5 @@
 from app.db.models import ScanResult, ScanRun, SignalEvent, SignalSetup, Trade
+from app.market.symbols import testing_symbols
 
 
 def iso(dt):
@@ -47,7 +48,8 @@ def setup(s: SignalSetup, events: list[SignalEvent] | None = None, t: Trade | No
          "signal_ts": iso(s.signal_ts), "entry_price": s.entry_price, "entry_atr": s.entry_atr, "stop_price": s.stop_price,
          "target_price": s.target_price, "signal_context": s.signal_context, "peak_adx": s.peak_adx,
          "exit_ts": iso(s.exit_ts), "exit_price": s.exit_price, "exit_reason": s.exit_reason,
-         "closed_reason": s.closed_reason, "trade": trade(t)}
+         "closed_reason": s.closed_reason, "trade": trade(t),
+         "testing": s.symbol in testing_symbols()}
     if events is not None:
         d["events"] = [{"id": e.id, "event": e.event, "candle_ts": iso(e.candle_ts), "price": e.price, "note": e.note,
                         "data": e.data, "created_at": iso(e.created_at)} for e in events]

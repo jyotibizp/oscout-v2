@@ -1,3 +1,4 @@
+import { useSymbols } from "../lib/symbols";
 import { useState } from "react";
 import { api } from "../api/client";
 import { SignalDetailDrawer } from "../components/Details";
@@ -35,6 +36,7 @@ export function LiveSignals() {
 }
 
 export function SignalHistory() {
+  const symbols = useSymbols();
   const [f, setF] = useState<Record<string, string>>({});
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const { data, error, loading } = useApi(() => api.signalHistory({ ...f, limit: 300 }), [JSON.stringify(f)]);
@@ -45,7 +47,7 @@ export function SignalHistory() {
       <div className="card p-3 mb-4 flex flex-wrap gap-3 items-end">
         <Field label="From"><input type="date" className="input" onChange={set("date_from")} /></Field>
         <Field label="To"><input type="date" className="input" onChange={set("date_to")} /></Field>
-        <Field label="Symbol"><select className="input" onChange={set("symbol")}><option value="">All</option><option>NIFTY</option><option>SENSEX</option></select></Field>
+        <Field label="Symbol"><select className="input" onChange={set("symbol")}><option value="">All</option>{symbols.map((x) => <option key={x.symbol}>{x.symbol}</option>)}</select></Field>
         <Field label="Direction"><select className="input" onChange={set("direction")}><option value="">All</option><option>CALL</option><option>PUT</option></select></Field>
         <Field label="Result"><select className="input" onChange={set("outcome")}><option value="">All</option><option value="qualified">Qualified</option><option value="rejected">Rejected / expired</option></select></Field>
         <Field label="Status"><select className="input" onChange={set("status")}><option value="">All</option><option value="active">Active</option><option value="closed">Closed</option></select></Field>

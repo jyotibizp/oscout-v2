@@ -176,7 +176,7 @@ class MockProvider:
     """Deterministic synthetic market (random walk with regime shifts) for development and tests.
     The same timestamp always produces the same candle."""
     name = "mock"
-    BASE = {"NIFTY": 22500.0, "SENSEX": 74000.0, "INDIAVIX": 14.0}
+    BASE = {"NIFTY": 22500.0, "SENSEX": 74000.0, "BANKNIFTY": 51000.0, "INDIAVIX": 14.0}
 
     def __init__(self, seed: int = 7):
         self.seed = seed

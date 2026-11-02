@@ -54,7 +54,7 @@ def test_pending_setup_expires_when_breakout_gone(db):
 def test_api_scan_config_and_health(db):
     c = client_at("127.0.0.1")
     r = c.post("/api/scans/run")
-    assert r.status_code == 200 and {x["symbol"] for x in r.json()["results"]} == {"NIFTY", "SENSEX"}
+    assert r.status_code == 200 and {x["symbol"] for x in r.json()["results"]} == {"NIFTY", "SENSEX", "BANKNIFTY"}
     latest = c.get("/api/scans/latest").json()["symbols"]["NIFTY"]
     assert latest["gate1"] in ("PASS", "FAIL", "WAIT")
     assert latest["details"]["commentary"]["headline"]
@@ -69,7 +69,7 @@ def test_api_scan_config_and_health(db):
     assert c.put("/api/config", json={"params": params}).status_code == 422
     assert c.post("/api/config/reset").json()["version"] == "1.0.2"
     h = c.get("/api/system/health").json()
-    assert h["provider"] == "mock" and len(h["feeds"]) == 5
+    assert h["provider"] == "mock" and len(h["feeds"]) == 7
     assert c.get("/api/performance/summary").status_code == 200
     assert c.get("/api/performance/analytics").status_code == 200
     assert c.get("/api/signals/active").status_code == 200

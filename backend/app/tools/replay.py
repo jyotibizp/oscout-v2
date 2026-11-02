@@ -6,7 +6,7 @@ India VIX: daily closes (CSV day,close); each day uses the PREVIOUS day's close 
 
 Usage:
   python -m app.tools.replay --csv NIFTY=path.csv --csv SENSEX=path.csv --vix vix_daily.csv \
-      [--set exit.stop_atr_multiple=2] [--from 2025-01-01] [--cost NIFTY=5 --cost SENSEX=17]
+      [--set exit.stop_atr_multiple=2] [--from 2025-01-01] [--cost NIFTY=1 --cost SENSEX=3 --cost BANKNIFTY=2]
 """
 import argparse
 import csv

@@ -1,6 +1,6 @@
 # #19 BANKNIFTY as a third index
 
-Status: Groomed (2 Nov 2026), open choices below · Index: [BACKLOG.md](../../../BACKLOG.md)
+Status: Built, in Testing (2 Nov 2026); backtest pending · Index: [BACKLOG.md](../../../BACKLOG.md)
 
 **Why:** BANKNIFTY moves more than NIFTY; same ADX setup, one more chance per day.
 
@@ -11,12 +11,15 @@ Status: Groomed (2 Nov 2026), open choices below · Index: [BACKLOG.md](../../..
 - Replay/backfill: `--cost BANKNIFTY=<pts>`.
 - Options (#15 chain): BANKNIFTY has monthly expiry only (NSE dropped weeklies Nov 2024), so the chain shows the current monthly.
 
-**Open choices (proposed)**
+**Agreed (2 Nov 2026)**
 1. Go-live: scan and record from day one, card tagged "Testing", no chime, until the backtest passes.
 2. Cost per trade: 2 pts (NIFTY 1, SENSEX 3).
 3. Strategy config: shared with NIFTY/SENSEX (one config, no per-index overrides).
 4. Backtest pass: positive avg R after costs in 2025 AND 2026, real Kite data, run on the Mac via `app.tools.backfill`/`replay`.
 5. Dashboard: 3 cards in one row on wide screens, stacked on narrow.
+
+**Built:** `market/symbols.py` entry, `TESTING_SYMBOLS=BANKNIFTY` in settings (empty it in `.env` to go live), `GET /api/market/symbols`, card TESTING tag, chime skips testing indexes, filters from the API, 3-col dashboard at 2xl.
+- First sync on the Mac backfills BANKNIFTY history (`INITIAL_BACKFILL_DAYS`).
 
 **Out of scope:** per-index strategy settings, FINNIFTY/MIDCPNIFTY, BANKNIFTY options selection (#1).
 

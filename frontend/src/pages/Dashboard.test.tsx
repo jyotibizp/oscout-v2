@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import { api } from "../api/client";
+import { resetSymbolsCache } from "../lib/symbols";
 import Dashboard from "./Dashboard";
 
 vi.mock("lightweight-charts", () => {
@@ -20,7 +21,9 @@ const result = (symbol: string) => ({
 
 beforeEach(() => {
   localStorage.clear();
-  vi.spyOn(api, "latest").mockResolvedValue({ run: null, symbols: { NIFTY: result("NIFTY"), SENSEX: result("SENSEX") } } as any);
+  resetSymbolsCache();
+  vi.spyOn(api, "symbols").mockResolvedValue([{ symbol: "NIFTY", testing: false }, { symbol: "SENSEX", testing: false }, { symbol: "BANKNIFTY", testing: true }]);
+  vi.spyOn(api, "latest").mockResolvedValue({ run: null, symbols: { NIFTY: result("NIFTY"), SENSEX: result("SENSEX"), BANKNIFTY: result("BANKNIFTY") } } as any);
   vi.spyOn(api, "activeSignals").mockResolvedValue({ active: [], pending: [], exited_today: [] });
   vi.spyOn(api, "candles").mockResolvedValue([{ ts: "2026-11-02T04:30:00+00:00", open: 1, high: 2, low: 0.5, close: 1.5, adx: 20, pdi: 25, mdi: 15, atr: 10 }]);
 });
@@ -53,4 +56,10 @@ test("Chain tab shows the chain with ATM and signal strike, and toggles to Greek
   expect(screen.queryAllByText("Delta")).toHaveLength(0);
   fireEvent.click(screen.getByRole("button", { name: "Greeks" }));
   expect(screen.getAllByText("Delta").length).toBe(2);
+});
+
+test("BANKNIFTY gets a third card tagged TESTING", async () => {
+  render(<Dashboard />);
+  expect(await screen.findByText("TESTING")).toBeInTheDocument();
+  expect(await screen.findAllByRole("tab", { name: "Chain" })).toHaveLength(3);
 });

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     start_scheduler: bool = True         # background auto-scan loop (disabled in tests)
     log_level: str = "INFO"
     log_json: bool = True
+    testing_symbols: str = "BANKNIFTY"   # indexes on trial: card tagged "Testing", no chime; empty = none
 
 
 @lru_cache

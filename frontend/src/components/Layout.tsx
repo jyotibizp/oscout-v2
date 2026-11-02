@@ -57,7 +57,9 @@ export function Header({ health, reload }: { health: Health | null; reload: () =
   const { autoRefresh, setAutoRefresh, bump } = useRefresh();
   const [scanning, setScanning] = useState(false);
   const signals = useApi(api.activeSignals, [], 15000);
-  const { muted, setMuted } = useSignalChime(signals.data?.active.map((s) => s.id), signals.data?.exited_today.map((s) => s.id));
+  const { muted, setMuted } = useSignalChime(
+    signals.data?.active.filter((s) => !s.testing).map((s) => s.id),  // indexes in Testing don't chime (#19)
+    signals.data?.exited_today.filter((s) => !s.testing).map((s) => s.id));
   const [msg, setMsg] = useState<string | null>(null);
   const admin = useRole() === "admin";
 

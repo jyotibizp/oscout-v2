@@ -1,3 +1,4 @@
+import { useSymbols } from "../lib/symbols";
 import { useState } from "react";
 import { api } from "../api/client";
 import { ScanDetailDrawer } from "../components/Details";
@@ -8,6 +9,7 @@ import { useApi } from "../lib/hooks";
 const PAGE = 100;
 
 export default function ScanHistory() {
+  const symbols = useSymbols();
   const [f, setF] = useState<Record<string, string>>({});
   const [page, setPage] = useState(0);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { setPage(0); setF({ ...f, [k]: e.target.value }); };
@@ -20,7 +22,7 @@ export default function ScanHistory() {
       <div className="card p-3 mb-4 flex flex-wrap gap-3 items-end">
         <Field label="From"><input type="date" className="input" onChange={set("date_from")} /></Field>
         <Field label="To"><input type="date" className="input" onChange={set("date_to")} /></Field>
-        <Field label="Symbol"><select className="input" onChange={set("symbol")}><option value="">All</option><option>NIFTY</option><option>SENSEX</option></select></Field>
+        <Field label="Symbol"><select className="input" onChange={set("symbol")}><option value="">All</option>{symbols.map((x) => <option key={x.symbol}>{x.symbol}</option>)}</select></Field>
         <Field label="Direction"><select className="input" onChange={set("direction")}><option value="">All</option><option>CALL</option><option>PUT</option></select></Field>
         <Field label="Final"><select className="input" onChange={set("final")}><option value="">All</option><option value="SIGNAL">Signal</option><option value="NO_SIGNAL">No signal</option></select></Field>
         <Field label="State"><select className="input" onChange={set("state")}><option value="">All</option>

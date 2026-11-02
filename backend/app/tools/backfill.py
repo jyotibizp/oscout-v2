@@ -1,6 +1,6 @@
 """Backfill scans and signals into a SEPARATE database (research tool, never the live DB).
 
-Fetches 5m history for NIFTY, SENSEX and India VIX, builds 15m candles and indicators exactly like live
+Fetches 5m history for every tradable index (NIFTY, SENSEX, BANKNIFTY) and India VIX, builds 15m candles and indicators exactly like live
 ingestion, then runs the live scan pipeline (engine + signal lifecycle + exits) once per completed 5m candle,
 in time order, as if the scanner had been running. Every scan run is tagged trigger=BACKFILL and uses one
 strategy configuration (copied from another DB's active config, or the defaults).

@@ -46,3 +46,10 @@ def test_chain_endpoint(db):
     assert body["symbol"] == "SENSEX" and len(body["rows"]) == 21 and body["signal"] is None
     assert body["rows"][0]["ce"]["iv"] > 0
     assert c.get("/api/options/chain?symbol=INDIAVIX").status_code == 404
+
+
+def test_banknifty_is_testing_and_has_a_monthly_chain(db):
+    c = client_at("127.0.0.1")
+    assert {"symbol": "BANKNIFTY", "testing": True} in c.get("/api/market/symbols").json()
+    body = c.get("/api/options/chain?symbol=BANKNIFTY").json()
+    assert body["rows"][1]["strike"] - body["rows"][0]["strike"] == 100

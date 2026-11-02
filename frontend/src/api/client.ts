@@ -69,7 +69,7 @@ export interface Setup {
   id: number; symbol: string; direction: "CALL" | "PUT"; state: string; breakout_ts: string; detected_at: string; config_version: string;
   breakout: Record<string, any>; signal_ts: string | null; entry_price: number | null; entry_atr: number | null; stop_price: number | null;
   target_price: number | null; signal_context: Record<string, any> | null; peak_adx: number | null; exit_ts: string | null;
-  exit_price: number | null; exit_reason: string | null; closed_reason: string | null; trade: Trade | null; events?: SignalEvent[]; scans?: ScanResult[]; tracking?: Tracking | null;
+  exit_price: number | null; exit_reason: string | null; closed_reason: string | null; trade: Trade | null; testing?: boolean; late?: boolean; events?: SignalEvent[]; scans?: ScanResult[]; tracking?: Tracking | null;
 }
 export interface Feed { feed: string; symbol: string; timeframe: string; status: string; reason: string | null; last_candle: string | null; expected_candle: string; candles: number; last_update: string | null; last_sync: string | null; last_error: string | null; market_open: boolean }
 export interface Health {
@@ -99,6 +99,7 @@ export const api = {
   activeSignals: () => req<{ active: Setup[]; pending: Setup[]; exited_today: Setup[] }>("/api/signals/active"),
   signalHistory: (p: Record<string, string | number | undefined>) => req<{ total: number; items: Setup[] }>(`/api/signals/history${qs(p)}`),
   signal: (id: number) => req<Setup>(`/api/signals/${id}`),
+  symbols: () => req<{ symbol: string; testing: boolean }[]>("/api/market/symbols"),
   candles: (symbol: string, timeframe = "5m", limit = 120) => req<Candle[]>(`/api/market/candles${qs({ symbol, timeframe, limit })}`),
   chain: (symbol: string, strikes = 10) => req<OptionChain>(`/api/options/chain${qs({ symbol, strikes })}`),
   config: () => req<ConfigResp>("/api/config"),

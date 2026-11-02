@@ -7,6 +7,7 @@ import { ScanDetailDrawer, SignalDetailDrawer } from "../components/Details";
 import { Badge, Dir, ErrorNote, PageHeader } from "../components/ui";
 import { n, signed, timeIST } from "../lib/format";
 import { useApi } from "../lib/hooks";
+import { useSymbols } from "../lib/symbols";
 
 type Step = { k: string; s: string; v: string };
 
@@ -148,14 +149,15 @@ function ChainTab({ sym }: { sym: string }) {
   return <ChainPanel sym={sym} c={data} error={error} />;
 }
 
-function SymbolCard({ sym, r, signal, lastExit, setups, onSignal, onDetails }: {
-  sym: string; r: ScanResult | null; signal?: Setup; lastExit?: Setup; setups: Setup[]; onSignal: (id: number) => void; onDetails: (id: number) => void;
+function SymbolCard({ sym, testing, r, signal, lastExit, setups, onSignal, onDetails, className = "" }: {
+  sym: string; testing?: boolean; r: ScanResult | null; signal?: Setup; lastExit?: Setup; setups: Setup[];
+  onSignal: (id: number) => void; onDetails: (id: number) => void; className?: string;
 }) {
   const [tab, setTab] = useCardTab(sym);
   const { data: candles } = useApi(() => (tab === "signal" ? api.candles(sym, "5m", 90) : Promise.resolve(null)), [sym, r?.id, tab], 60000);
   const rows = { gridRow: `span ${CARD_ROWS}`, gridTemplateRows: "subgrid" } as const;
   if (!r) return (
-    <section className="card p-5 grid gap-4" style={rows}>
+    <section className={`card p-5 grid gap-4 ${className}`} style={rows}>
       <h2 className="text-lg font-bold tracking-wide">{sym}</h2>
       <p className="text-sm text-ink-faint">No scan yet. Press SCAN NOW.</p>
     </section>
@@ -169,7 +171,7 @@ function SymbolCard({ sym, r, signal, lastExit, setups, onSignal, onDetails }: {
   const header = (
     <header className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 className="text-lg font-bold tracking-wide">{sym}</h2>
+        <h2 className="text-lg font-bold tracking-wide">{sym}{testing && <span className="ml-2 align-middle rounded border border-warn/50 bg-warn/10 px-1.5 py-0.5 text-[11px] font-semibold text-warn" title="On trial: scanned and recorded, no chime, until the 2025 + 2026 backtest passes">TESTING</span>}</h2>
         <div className="text-xs text-ink-faint">Candle {timeIST(r.candle_ts)} IST · config v{r.config_version}</div>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -180,7 +182,7 @@ function SymbolCard({ sym, r, signal, lastExit, setups, onSignal, onDetails }: {
     </header>
   );
   if (tab !== "signal") return (
-    <section className={`card p-5 grid gap-4 ${isSignal || signal ? "border-accent" : ""}`} style={rows}>
+    <section className={`card p-5 grid gap-4 ${isSignal || signal ? "border-accent" : ""} ${className}`} style={rows}>
       {header}
       <div style={{ gridRow: `span ${CARD_ROWS - 1}` }} className="min-w-0">
         {tab === "chart" ? <ChartTab sym={sym} scanId={r.id} setups={setups} level={level} /> : <ChainTab sym={sym} />}
@@ -188,7 +190,7 @@ function SymbolCard({ sym, r, signal, lastExit, setups, onSignal, onDetails }: {
     </section>
   );
   return (
-    <section className={`card p-5 grid gap-4 ${isSignal || signal ? "border-accent" : ""}`} style={rows}>
+    <section className={`card p-5 grid gap-4 ${isSignal || signal ? "border-accent" : ""} ${className}`} style={rows}>
       {header}
 
       <p className="text-base text-ink font-medium leading-snug">{verdict ?? "—"}</p>
@@ -209,17 +211,17 @@ function SymbolCard({ sym, r, signal, lastExit, setups, onSignal, onDetails }: {
 }
 
 /** One full-width commentary widget for both indexes, side by side. */
-function CommentaryPanel({ syms, active }: { syms: Record<string, ScanResult | null | undefined>; active: Setup[] }) {
+function CommentaryPanel({ syms, active, order }: { syms: Record<string, ScanResult | null | undefined>; active: Setup[]; order: string[] }) {
   return (
     <section className="card p-5">
       <h2 className="text-xs uppercase tracking-widest text-ink-faint mb-4">Commentary</h2>
-      <div className="grid gap-6 xl:grid-cols-2 xl:divide-x xl:divide-line">
-        {["NIFTY", "SENSEX"].map((sym, i) => {
+      <div className="grid gap-6 xl:gap-8 xl:grid-cols-2 2xl:grid-cols-3">
+        {order.map((sym, i) => {
           const r = syms[sym];
           const c = r?.details?.commentary;
           const sig = active.find((a) => a.symbol === sym);
           return (
-            <div key={sym} className={i ? "xl:pl-6" : ""}>
+            <div key={sym} className={i ? "border-t border-line pt-6 xl:border-t-0 xl:pt-0" : ""}>
               <div className="flex items-baseline justify-between mb-2">
                 <span className="text-sm font-bold tracking-wide">{sym}</span>
                 <span className="text-xs text-ink-faint">{c?.candle_close ? `${c.candle_close} IST candle` : ""}</span>
@@ -273,23 +275,25 @@ export default function Dashboard() {
   const syms = latest.data?.symbols ?? {};
   const active = sig.data?.active ?? [];
   const run = latest.data?.run;
+  const symbols = useSymbols();
   const summary = active.length
     ? `${active.length} active signal${active.length > 1 ? "s" : ""}: ${active.map((s) => `${s.symbol} ${s.direction}`).join(", ")}`
     : sig.data?.pending.length ? `${sig.data.pending.length} setup(s) waiting for 15m confirmation` : "No active signal";
   return (
-    <div className="max-w-7xl">
+    <div className="max-w-[1920px]">
       <PageHeader title="Is there a trade right now?"
         sub={run ? `${summary} · last scan #${run.id} (${run.trigger}) at ${timeIST(run.started_at)} IST` : "No scans yet"} />
       <ErrorNote error={latest.error} />
-      <div className="grid gap-x-5 gap-y-5 xl:gap-y-0 xl:grid-cols-2">
-        {["NIFTY", "SENSEX"].map((s) => (
-          <SymbolCard key={s} sym={s} r={syms[s] ?? null} signal={active.find((a) => a.symbol === s)}
+      <div className="grid gap-x-5 gap-y-5 xl:gap-y-0 xl:grid-cols-2 2xl:grid-cols-3">
+        {symbols.map(({ symbol: s, testing }, i) => (
+          <SymbolCard key={s} sym={s} testing={testing} className={i >= 2 ? "xl:mt-5 2xl:mt-0" : ""}
+            r={syms[s] ?? null} signal={active.find((a) => a.symbol === s)}
             lastExit={sig.data?.exited_today.find((x) => x.symbol === s)}
             setups={[...active, ...(sig.data?.pending ?? []), ...(sig.data?.exited_today ?? [])].filter((x) => x.symbol === s)}
             onSignal={setOpenSignal} onDetails={setOpenScan} />
         ))}
       </div>
-      <div className="mt-5"><CommentaryPanel syms={syms} active={active} /></div>
+      <div className="mt-5"><CommentaryPanel syms={syms} active={active} order={symbols.map((x) => x.symbol)} /></div>
       <SignalDetailDrawer id={openSignal} onClose={() => setOpenSignal(null)} />
       <ScanDetailDrawer id={openScan} onClose={() => setOpenScan(null)} />
     </div>
