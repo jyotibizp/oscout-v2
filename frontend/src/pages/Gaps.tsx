@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api, GapBlock, GapFillResult } from "../api/client";
-import { Badge, Empty, ErrorNote, Field, PageHeader, Stat } from "../components/ui";
+import { Badge, Empty, ErrorNote, PageHeader, Stat } from "../components/ui";
 import { dateIST, timeIST } from "../lib/format";
 import { useApi } from "../lib/hooks";
 import { useRole } from "../lib/role";
@@ -39,13 +39,14 @@ export default function Gaps() {
 
   return (
     <div className="max-w-5xl">
-      <PageHeader title="Scan gaps" sub="Completed 5m candles that no auto scan covered (app down, Mac asleep, feed error, token expired). Nothing fills by itself."
-        right={
-          <div className="flex flex-wrap items-end gap-2">
-            <Field label="From"><input type="date" className="input" value={range.from ?? d?.from ?? ""} onChange={(e) => setRange({ ...range, from: e.target.value })} /></Field>
-            <Field label="To"><input type="date" className="input" value={range.to ?? d?.to ?? ""} onChange={(e) => setRange({ ...range, to: e.target.value })} /></Field>
-          </div>
-        } />
+      <PageHeader title="Scan gaps" sub="Completed 5m candles that no auto scan covered (app down, Mac asleep, feed error, token expired). Nothing fills by itself." />
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
+        <span>Range</span>
+        <input type="date" aria-label="From" className="input" value={range.from ?? d?.from ?? ""} onChange={(e) => setRange({ ...range, from: e.target.value })} />
+        <span>to</span>
+        <input type="date" aria-label="To" className="input" value={range.to ?? d?.to ?? ""} onChange={(e) => setRange({ ...range, to: e.target.value })} />
+        {(range.from || range.to) && <button className="btn !px-3 !py-1" onClick={() => setRange({})}>Last 5 days</button>}
+      </div>
       <ErrorNote error={gaps.error ?? error} />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <Stat label="Missing candles" value={d?.total_missing ?? "—"} />
