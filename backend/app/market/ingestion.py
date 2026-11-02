@@ -105,13 +105,17 @@ def sync_5m(db: Session, provider, symbol: str, now: datetime | None = None) -> 
     return res
 
 
-def aggregate_15m(db: Session, symbol: str) -> int:
+def aggregate_15m(db: Session, symbol: str, before: datetime | None = None) -> int:
     """Build 15m candles (aligned to 09:15 IST) from stored 5m candles. A 15m candle is written only
-    when all three 5m candles exist, so it is never built from a partial bucket."""
-    last15 = latest_ts(db, symbol, "15m")
+    when all three 5m candles exist, so it is never built from a partial bucket.
+    before: build only buckets older than this (loading older history); default: buckets after the last 15m."""
     q = select(MarketCandle).where(MarketCandle.symbol == symbol, MarketCandle.timeframe == "5m")
-    if last15 is not None:
-        q = q.where(MarketCandle.ts >= last15 + timedelta(minutes=15))
+    if before is not None:
+        q = q.where(MarketCandle.ts < before)
+    else:
+        last15 = latest_ts(db, symbol, "15m")
+        if last15 is not None:
+            q = q.where(MarketCandle.ts >= last15 + timedelta(minutes=15))
     five = db.scalars(q.order_by(MarketCandle.ts)).all()
     buckets: dict[datetime, list[MarketCandle]] = {}
     for c in five:

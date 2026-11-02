@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, GapBlock, GapFillResult, ReplayResult } from "../api/client";
+import { api, GapBlock, GapFillResult, HistoryResult, ReplayResult } from "../api/client";
 import { Badge, Empty, ErrorNote, PageHeader, Stat } from "../components/ui";
 import { dateIST, timeIST } from "../lib/format";
 import { useApi } from "../lib/hooks";
@@ -16,6 +16,8 @@ export default function Gaps() {
   const [results, setResults] = useState<GapFillResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [replayed, setReplayed] = useState<ReplayResult | null>(null);
+  const [histFrom, setHistFrom] = useState("");
+  const [loaded, setLoaded] = useState<HistoryResult[] | null>(null);
   const admin = useRole() === "admin";
   const d = gaps.data;
   const blocks = d?.blocks ?? [];
@@ -30,6 +32,21 @@ export default function Gaps() {
       const r = await api.fillGaps(chosen.map((b) => b.id));
       setResults(r.results);
       setSel(new Set());
+      gaps.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadHistory = async () => {
+    if (!window.confirm(`Load candles from ${dateIST(histFrom)} to ${d?.candles_from ? dateIST(d.candles_from) : "the first stored day"} for every index?\n\nOnly adds candles; indicators are recomputed from the new start. Needs today's Kite connection; a few months takes a few minutes. Then pick that range here and fill the blocks.`)) return;
+    setBusy(true); setError(null); setLoaded(null);
+    try {
+      const r = await api.loadHistory(histFrom);
+      setLoaded(r.results);
+      setRange({ from: histFrom, to: r.candles_from ?? undefined });
       gaps.reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -62,6 +79,16 @@ export default function Gaps() {
         <input type="date" aria-label="To" className="input" value={range.to ?? d?.to ?? ""} onChange={(e) => setRange({ ...range, to: e.target.value })} />
         {(range.from || range.to) && <button className="btn !px-3 !py-1" onClick={() => setRange({})}>Last 5 days</button>}
       </div>
+      {admin && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
+          <span>Candles stored from {d?.candles_from ? dateIST(d.candles_from) : "—"}. Load older history from</span>
+          <input type="date" aria-label="History from" className="input" value={histFrom} max={d?.candles_from ?? undefined} onChange={(e) => setHistFrom(e.target.value)} />
+          <button className="btn" disabled={!histFrom || busy || (!!d?.candles_from && histFrom >= d.candles_from)} onClick={loadHistory}>{busy ? "Working…" : "Load history"}</button>
+        </div>
+      )}
+      {loaded && (
+        <p className="card p-4 mb-5 text-sm" aria-label="History results">{loaded.map((r) => `${r.symbol}: ${r.status === "LOADED" ? `+${r.inserted_5m} candles, from ${dateIST(r.from!)}` : r.status === "UP_TO_DATE" ? "already loaded" : r.message}`).join(" · ")}</p>
+      )}
       <ErrorNote error={gaps.error ?? error} />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <Stat label="Missing candles" value={d?.total_missing ?? "—"} />

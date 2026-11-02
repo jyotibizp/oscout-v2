@@ -53,8 +53,9 @@ export interface OptionChain {
   signal: { direction: "CALL" | "PUT"; option: "CE" | "PE"; strike: number; target_delta: number } | null;
 }
 export interface GapBlock { id: string; date: string; start: string; end: string; candles: number; type: "LATEST" | "INTERIOR"; data: "FULL" | "PARTIAL" | "NONE"; selectable: boolean }
-export interface Gaps { from: string; to: string; total_missing: number; days: { date: string; expected: number; missing: number }[]; no_data_days: string[]; blocks: GapBlock[]; replay_pending?: number }
+export interface Gaps { from: string; to: string; total_missing: number; days: { date: string; expected: number; missing: number }[]; no_data_days: string[]; blocks: GapBlock[]; replay_pending?: number; candles_from?: string | null }
 export interface GapFillResult { id: string; status: "FILLED" | "SKIPPED" | "NO_DATA"; mode?: "FULL" | "REPLAY" | "RECORD_ONLY"; scans?: number; signals?: number; blocked?: number; missed?: number; message?: string }
+export interface HistoryResult { symbol: string; status: "LOADED" | "UP_TO_DATE" | "SKIPPED"; inserted_5m?: number; from?: string; message?: string }
 export interface ReplayResult { breakouts: number; signals: number; blocked: number; skipped: number }
 export interface ScanRun { id: number; trigger: string; candle_ts: string | null; started_at: string; finished_at: string | null; status: string; config_version: string; summary: any }
 export interface Trade {
@@ -100,6 +101,7 @@ export const api = {
   latest: () => req<{ run: ScanRun | null; symbols: Record<string, ScanResult | null> }>("/api/scans/latest"),
   gaps: (from?: string, to?: string) => req<Gaps>(`/api/scans/gaps${qs({ from, to })}`),
   fillGaps: (blocks: string[]) => req<{ results: GapFillResult[] }>("/api/scans/gaps/fill", { method: "POST", body: JSON.stringify({ blocks }) }),
+  loadHistory: (from: string) => req<{ results: HistoryResult[]; candles_from: string | null }>("/api/market/history", { method: "POST", body: JSON.stringify({ from }) }),
   replayFilled: () => req<ReplayResult>("/api/scans/gaps/replay", { method: "POST" }),
   scanHistory: (p: Record<string, string | number | undefined>) => req<{ total: number; items: ScanResult[] }>(`/api/scans/history${qs(p)}`),
   scanResult: (id: number) => req<ScanResult>(`/api/scans/results/${id}`),

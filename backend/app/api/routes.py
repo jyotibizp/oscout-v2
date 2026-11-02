@@ -3,7 +3,7 @@ from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,7 @@ from app.core.settings import get_settings
 from app.db.models import (MarketCandle, ScanResult, ScanRun, SignalEvent, SignalSetup, StrategyConfiguration,
                            SystemEvent, Trade)
 from app.db.session import get_db
-from app.market import health
+from app.market import health, history
 from app.market.factory import get_provider, save_token
 from app.market.providers import AuthError, ProviderError
 from app.market.repository import load_bars
@@ -23,7 +23,7 @@ from app.options import chain as option_chain
 from app.performance import metrics
 from app.scanner.scheduler import auto_scanner
 from app.scanner import gaps
-from app.scanner.service import run_scan
+from app.scanner.service import SCAN_LOCK, run_scan
 from app.signals.lifecycle import OPEN
 from app.signals.tracking import track
 from app.strategy import store
@@ -106,7 +106,8 @@ def scans_gaps(date_from: date | None = Query(None, alias="from"), date_to: date
         while n < 4:
             date_from -= timedelta(days=1)
             n += date_from.weekday() < 5
-    return {**gaps.find(db, date_from, date_to or today), "replay_pending": len(gaps.unreplayed(db))}
+    return {**gaps.find(db, date_from, date_to or today), "replay_pending": len(gaps.unreplayed(db)),
+            "candles_from": history.stored_from(db)}
 
 
 @router.post("/scans/gaps/fill")
@@ -117,6 +118,28 @@ def scans_gaps_fill(body: GapFill, db: Session = Depends(get_db)):
         raise HTTPException(409, str(e))
     except AuthError as e:
         raise HTTPException(401, str(e))
+
+
+class LoadHistory(BaseModel):
+    date_from: date = Field(alias="from")
+
+
+@router.post("/market/history")
+def market_history(body: LoadHistory, db: Session = Depends(get_db)):
+    """Load candles older than the first stored one (from `from`), so those days can be filled and replayed."""
+    today = to_ist(now_utc()).date()
+    if body.date_from >= today or (today - body.date_from).days > history.MAX_DAYS:
+        raise HTTPException(400, f"Pick a date within the last {history.MAX_DAYS} days")
+    if not SCAN_LOCK.acquire(blocking=False):
+        raise HTTPException(409, "A scan or fill is running; try again in a moment")
+    try:
+        _, cfg = store.get_active(db)
+        return {"results": history.load(db, get_provider(), body.date_from, cfg.indicator_periods()),
+                "candles_from": history.stored_from(db)}
+    except AuthError as e:
+        raise HTTPException(401, str(e))
+    finally:
+        SCAN_LOCK.release()
 
 
 @router.post("/scans/gaps/replay")

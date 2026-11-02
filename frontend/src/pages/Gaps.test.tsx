@@ -43,3 +43,14 @@ test("replays blocks filled before replay existed", async () => {
   expect(rep).toHaveBeenCalled();
   expect(await screen.findByText(/25 LATE trade\(s\), 5 rejected/)).toBeInTheDocument();
 });
+
+test("loads older history and jumps to that range", async () => {
+  vi.mocked(api.gaps).mockResolvedValue({ from: "2026-10-27", to: "2026-11-02", total_missing: 0, no_data_days: [], days: [], blocks: [], candles_from: "2026-09-08" });
+  const load = vi.spyOn(api, "loadHistory").mockResolvedValue({ results: [{ symbol: "NIFTY", status: "LOADED", inserted_5m: 1500, from: "2026-08-03" }], candles_from: "2026-08-03" });
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  render(<Gaps />);
+  fireEvent.change(await screen.findByLabelText("History from"), { target: { value: "2026-08-03" } });
+  fireEvent.click(screen.getByRole("button", { name: "Load history" }));
+  expect(load).toHaveBeenCalledWith("2026-08-03");
+  expect(await screen.findByText(/NIFTY: \+1500 candles/)).toBeInTheDocument();
+});
