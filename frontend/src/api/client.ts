@@ -45,6 +45,7 @@ export interface ScanResult {
     breakout: Record<string, any> | null; snapshot: Record<string, any>; commentary?: Commentary | null;
   };
 }
+export interface Candle { ts: string; open: number; high: number; low: number; close: number; adx: number | null; pdi: number | null; mdi: number | null; atr: number | null }
 export interface ScanRun { id: number; trigger: string; candle_ts: string | null; started_at: string; finished_at: string | null; status: string; config_version: string; summary: any }
 export interface Trade {
   id: number; setup_id: number; symbol: string; direction: string; status: string; entry_ts: string; entry_price: number;
@@ -92,7 +93,7 @@ export const api = {
   activeSignals: () => req<{ active: Setup[]; pending: Setup[]; exited_today: Setup[] }>("/api/signals/active"),
   signalHistory: (p: Record<string, string | number | undefined>) => req<{ total: number; items: Setup[] }>(`/api/signals/history${qs(p)}`),
   signal: (id: number) => req<Setup>(`/api/signals/${id}`),
-  candles: (symbol: string, timeframe = "5m", limit = 120) => req<{ ts: string; close: number; adx: number | null; pdi: number | null; mdi: number | null }[]>(`/api/market/candles${qs({ symbol, timeframe, limit })}`),
+  candles: (symbol: string, timeframe = "5m", limit = 120) => req<Candle[]>(`/api/market/candles${qs({ symbol, timeframe, limit })}`),
   config: () => req<ConfigResp>("/api/config"),
   saveConfig: (params: ConfigResp["params"], note?: string) => req<{ version: string; changed: { group: string; key: string; old: any; new: any }[]; message?: string }>("/api/config", { method: "PUT", body: JSON.stringify({ params, note }) }),
   resetConfig: () => req<{ version: string }>("/api/config/reset", { method: "POST" }),

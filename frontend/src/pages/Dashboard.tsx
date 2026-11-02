@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, ScanResult, Setup } from "../api/client";
+import { CandleChart, ChartOverlay } from "../components/CandleChart";
 import { Sparkline } from "../components/Charts";
 import { ScanDetailDrawer, SignalDetailDrawer } from "../components/Details";
 import { Badge, Dir, ErrorNote, PageHeader } from "../components/ui";
@@ -98,11 +99,53 @@ function LastExit({ s }: { s: Setup }) {
 
 const CARD_ROWS = 5; // header · verdict · signal or checks · chart · footer, shared by both cards
 
+type Tab = "signal" | "chart";
+const TABS: { k: Tab; label: string }[] = [{ k: "signal", label: "Signal" }, { k: "chart", label: "Chart" }];
+const tabKey = (sym: string) => `oscout.cardTab.${sym}`;
+
+/** Tab per card, remembered in this browser (storage may be blocked: then it just defaults to Signal). */
+function useCardTab(sym: string): [Tab, (t: Tab) => void] {
+  const [tab, setTab] = useState<Tab>(() => {
+    try { const v = localStorage.getItem(tabKey(sym)); return TABS.some((t) => t.k === v) ? (v as Tab) : "signal"; } catch { return "signal"; }
+  });
+  return [tab, (t) => { setTab(t); try { localStorage.setItem(tabKey(sym), t); } catch { /* private mode */ } }];
+}
+
+function Tabs({ sym, tab, onTab }: { sym: string; tab: Tab; onTab: (t: Tab) => void }) {
+  return (
+    <div role="tablist" aria-label={`${sym} view`} className="inline-flex rounded-full border border-line p-0.5 text-xs">
+      {TABS.map((t) => (
+        <button key={t.k} role="tab" aria-selected={tab === t.k} onClick={() => onTab(t.k)}
+          className={`rounded-full px-3 py-1 font-medium ${tab === t.k ? "bg-accent-strong text-white" : "text-accent hover:bg-raise"}`}>{t.label}</button>
+      ))}
+    </div>
+  );
+}
+
+/** Chart tab body: 5m candles + ADX pane with trade lines and markers; ⤢ opens the full-screen view with more history. */
+function ChartTab({ sym, scanId, setups, level }: { sym: string; scanId?: number; setups: Setup[]; level?: number | null }) {
+  const [max, setMax] = useState(false);
+  const small = useApi(() => api.candles(sym, "5m", 300), [sym, scanId]);
+  const big = useApi(() => (max ? api.candles(sym, "5m", 1000) : Promise.resolve(null)), [sym, scanId, max]);
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between text-xs text-ink-faint">
+        <span>5m · drag to pan, scroll to zoom</span>
+        <button className="btn !px-3 !py-1" onClick={() => setMax(true)} aria-label="Maximize chart">⤢ Maximize</button>
+      </div>
+      {small.data?.length ? <CandleChart candles={small.data} setups={setups} level={level} height={340} />
+        : <p className="text-sm text-ink-faint">{small.error ?? "Loading candles…"}</p>}
+      {max && <ChartOverlay sym={sym} candles={big.data ?? small.data ?? []} setups={setups} level={level} onClose={() => setMax(false)} />}
+    </div>
+  );
+}
+
 /** One index card. Its rows sit on the parent grid (subgrid), so both cards line up section by section. */
-function SymbolCard({ sym, r, signal, lastExit, onSignal, onDetails }: {
-  sym: string; r: ScanResult | null; signal?: Setup; lastExit?: Setup; onSignal: (id: number) => void; onDetails: (id: number) => void;
+function SymbolCard({ sym, r, signal, lastExit, setups, onSignal, onDetails }: {
+  sym: string; r: ScanResult | null; signal?: Setup; lastExit?: Setup; setups: Setup[]; onSignal: (id: number) => void; onDetails: (id: number) => void;
 }) {
-  const { data: candles } = useApi(() => api.candles(sym, "5m", 90), [sym, r?.id], 60000);
+  const [tab, setTab] = useCardTab(sym);
+  const { data: candles } = useApi(() => (tab === "signal" ? api.candles(sym, "5m", 90) : Promise.resolve(null)), [sym, r?.id, tab], 60000);
   const rows = { gridRow: `span ${CARD_ROWS}`, gridTemplateRows: "subgrid" } as const;
   if (!r) return (
     <section className="card p-5 grid gap-4" style={rows}>
@@ -116,18 +159,30 @@ function SymbolCard({ sym, r, signal, lastExit, onSignal, onDetails }: {
   const verdict = signal
     ? `${signal.direction === "CALL" ? "CE" : "PE"} signal active since ${timeIST(signal.signal_ts)} IST. New entries wait until it exits.`
     : r.details?.commentary?.headline ?? r.rejection_reason ?? r.details?.reason;
+  const header = (
+    <header className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 className="text-lg font-bold tracking-wide">{sym}</h2>
+        <div className="text-xs text-ink-faint">Candle {timeIST(r.candle_ts)} IST · config v{r.config_version}</div>
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Dir d={r.direction} />
+        <Badge s={isSignal ? "SIGNAL" : r.state} label={isSignal ? `${r.direction} BUY` : undefined} />
+        <Tabs sym={sym} tab={tab} onTab={setTab} />
+      </div>
+    </header>
+  );
+  if (tab === "chart") return (
+    <section className={`card p-5 grid gap-4 ${isSignal || signal ? "border-accent" : ""}`} style={rows}>
+      {header}
+      <div style={{ gridRow: `span ${CARD_ROWS - 1}` }} className="min-w-0">
+        <ChartTab sym={sym} scanId={r.id} setups={setups} level={level} />
+      </div>
+    </section>
+  );
   return (
     <section className={`card p-5 grid gap-4 ${isSignal || signal ? "border-accent" : ""}`} style={rows}>
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold tracking-wide">{sym}</h2>
-          <div className="text-xs text-ink-faint">Candle {timeIST(r.candle_ts)} IST · config v{r.config_version}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Dir d={r.direction} />
-          <Badge s={isSignal ? "SIGNAL" : r.state} label={isSignal ? `${r.direction} BUY` : undefined} />
-        </div>
-      </header>
+      {header}
 
       <p className="text-base text-ink font-medium leading-snug">{verdict ?? "—"}</p>
 
@@ -223,6 +278,7 @@ export default function Dashboard() {
         {["NIFTY", "SENSEX"].map((s) => (
           <SymbolCard key={s} sym={s} r={syms[s] ?? null} signal={active.find((a) => a.symbol === s)}
             lastExit={sig.data?.exited_today.find((x) => x.symbol === s)}
+            setups={[...active, ...(sig.data?.pending ?? []), ...(sig.data?.exited_today ?? [])].filter((x) => x.symbol === s)}
             onSignal={setOpenSignal} onDetails={setOpenScan} />
         ))}
       </div>

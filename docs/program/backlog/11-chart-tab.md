@@ -1,6 +1,6 @@
 # #11 Chart tab on each index card
 
-Status: Groomed (13 Oct 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
+Status: Done (2 Nov 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
 
 **Why:** the card tells me the state but not the picture; I want to see price, the breakout and the trade levels without leaving the dashboard.
 
@@ -25,3 +25,5 @@ Status: Groomed (13 Oct 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
 - vitest: tab switch and maximize render; existing tests stay green.
 
 **Estimate:** 1 story, ~half a day. Needs `lightweight-charts` added to v2 `frontend/package.json`.
+
+**Built:** `frontend/src/components/CandleChart.tsx`, tabs in `pages/Dashboard.tsx`. Overlay has an ATR on/off toggle. Live on the Mac after `git pull && cd frontend && npm install && npm run build`.
