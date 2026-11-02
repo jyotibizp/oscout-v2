@@ -155,3 +155,28 @@ def test_history_and_latest_follow_candle_order_after_a_fill(db):
     ts = [i["candle_ts"] for i in items]
     assert ts == sorted(ts, reverse=True) and len(ts) == 10
     assert cl.get("/api/scans/latest").json()["symbols"]["NIFTY"]["candle_ts"] == ts[0]
+
+
+def test_scans_on_a_stale_feed_are_gaps_and_a_fill_rescans_them_once(db):
+    p = MockProvider()
+    set_provider(p)
+    _ingest(db, p)
+    c = _candles()
+    for t in c[:6]:
+        run_scan(db, p, "AUTO", t + STEP + timedelta(seconds=20), ingest=False)
+    db.query(MarketCandle).filter(MarketCandle.ts > c[5]).delete()  # feed stopped after 09:40 (token not refreshed)
+    db.commit()
+    now = ist(2026, 10, 7, 10, 1)
+    for t in c[6:9]:
+        run, _ = run_scan(db, p, "AUTO", t + STEP + timedelta(seconds=20), ingest=False)
+        assert {r.candle_ts.replace(tzinfo=None) for r in db.scalars(select(ScanResult).where(ScanResult.scan_run_id == run.id))} \
+            == {c[5].replace(tzinfo=None)}  # scanned 09:40 again
+    blocks = gaps.find(db, DAY, DAY, now)["blocks"]
+    assert [(b["candles"], b["type"], b["data"]) for b in blocks] == [(3, "LATEST", "NONE")]
+    _ingest(db, p)  # token refreshed: candles back
+    res = gaps.fill(db, p, [blocks[0]["id"]], now)
+    assert res[0]["status"] == "FILLED" and res[0]["scans"] == 3 and res[0]["mode"] == "FULL"
+    assert gaps.find(db, DAY, DAY, now)["blocks"] == []
+    assert gaps.fill(db, p, [blocks[0]["id"]], now)[0]["status"] == "SKIPPED"
+    keys = db.scalars(select(ScanRun.dedupe_key).where(ScanRun.trigger == "BACKFILL")).all()
+    assert sorted(keys) == sorted(f"BACKFILL:{t.isoformat()}" for t in c[6:9])

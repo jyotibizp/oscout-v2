@@ -34,4 +34,5 @@ Status: Done (2 Nov 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
 **Built:** `scanner/gaps.py` (find / fill / late_setup_ids), `run_scan(lifecycle=False)` + `SCAN_LOCK` in `scanner/service.py`, `GET /api/scans/gaps`, `POST /api/scans/gaps/fill` (admin), page `pages/Gaps.tsx` (sidebar: Scans → Scan Gaps), LATE badge, Performance "Excluding late" toggle.
 - Latest = no scan of any trigger at or after the block start; a MANUAL scan inside a gap makes it Interior.
 - Days with no candles at all are listed as holidays / never synced, not as gaps.
+- A scan whose results all evaluated an older candle ("5M DATA STALE": token not refreshed) doesn't cover its candle or count as "latest"; a fill re-scans it once under `BACKFILL:{candle}` (found 2 Nov: most mornings 09:15 → CONNECT were stale).
 - `detected_at` of a late signal = simulated scan time (same as `tools/backfill.py`); "late" comes from the BACKFILL scan.

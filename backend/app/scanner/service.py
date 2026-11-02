@@ -36,6 +36,13 @@ SCAN_LOCK = threading.RLock()
 LATE_NOTE = "late fill, lifecycle not replayed"
 
 
+def stale_run(db: Session, run: ScanRun) -> bool:
+    """A run whose results all evaluated an older candle (feed stale: token not refreshed, sync failed). It didn't
+    really scan its candle, so Scan gaps (#2) lists the candle and a fill may re-scan it once."""
+    ts = db.scalars(select(ScanResult.candle_ts).where(ScanResult.scan_run_id == run.id)).all()
+    return bool(ts) and all(t != run.candle_ts for t in ts)
+
+
 def ingest_all(db: Session, provider, cfg: StrategyConfig, now: datetime) -> dict:
     out = {}
     for sym in TRADABLE + [VIX]:
@@ -108,8 +115,12 @@ def _run_scan(db: Session, provider, trigger: str, now: datetime | None, ingest:
     cfg_row, cfg = store.get_active(db)
     candle = latest_completed_start(now, "5m")
     dedupe = f"AUTO:{candle.isoformat()}" if trigger in ("AUTO", "BACKFILL") else None
-    if dedupe and db.scalar(select(ScanRun).where(ScanRun.dedupe_key == dedupe)):
-        return db.scalar(select(ScanRun).where(ScanRun.dedupe_key == dedupe)), False
+    prev = db.scalar(select(ScanRun).where(ScanRun.dedupe_key == dedupe)) if dedupe else None
+    if prev is not None and trigger == "BACKFILL" and stale_run(db, prev):
+        dedupe = f"BACKFILL:{candle.isoformat()}"  # the AUTO scan ran on stale data: one real scan of it, still once
+        prev = db.scalar(select(ScanRun).where(ScanRun.dedupe_key == dedupe))
+    if prev is not None:
+        return prev, False
     run = ScanRun(trigger=trigger, candle_ts=candle, dedupe_key=dedupe, started_at=now, status="RUNNING",
                   config_id=cfg_row.id, config_version=cfg_row.version)
     db.add(run)

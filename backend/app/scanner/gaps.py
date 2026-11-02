@@ -2,15 +2,16 @@
 
 Latest block (no scan of any kind after it): full fill, the lifecycle sees the candles in order as if nothing broke.
 Interior block (later scans exist): record-only fill, scan_results written, setups / events / trades untouched.
+A scan whose results all evaluated an older candle (stale feed) doesn't cover its candle and doesn't move "latest".
 """
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.clock import UTC, as_utc, is_weekday, latest_completed_start, now_utc, session_close, session_open, to_ist
-from app.db.models import MarketCandle, ScanRun
+from app.db.models import MarketCandle, ScanResult, ScanRun
 from app.market.symbols import TRADABLE
 from app.scanner.service import SCAN_LOCK, ingest_all, run_scan
 from app.strategy import store
@@ -65,15 +66,26 @@ class Block:
                 "data": self.data, "selectable": self.data == "FULL"}
 
 
+def _real_runs(db: Session, lo: datetime) -> list[tuple[str, datetime]]:
+    """(trigger, candle) of runs from `lo` on that scanned their own candle: no results, or at least one result on it."""
+    rows = db.execute(select(ScanRun.id, ScanRun.trigger, ScanRun.candle_ts, ScanResult.candle_ts)
+                      .outerjoin(ScanResult, ScanResult.scan_run_id == ScanRun.id).where(ScanRun.candle_ts >= lo)).all()
+    runs: dict[int, list] = {}
+    for rid, trig, c, rc in rows:
+        r = runs.setdefault(rid, [trig, _utc(c), False, False])
+        r[2] |= rc is not None
+        r[3] |= rc is not None and _utc(rc) == r[1]
+    return [(trig, c) for trig, c, has, fresh in runs.values() if fresh or not has]
+
+
 def find(db: Session, d_from: date, d_to: date, now: datetime | None = None) -> dict:
     now = now or now_utc()
     last_done = latest_completed_start(now, "5m")
     lo, hi = as_utc(session_open(d_from)), as_utc(session_close(d_to))
-    covered = {_utc(t) for t in db.scalars(select(ScanRun.candle_ts).where(
-        ScanRun.trigger.in_(COVERING), ScanRun.candle_ts >= lo, ScanRun.candle_ts <= hi))}
+    real = _real_runs(db, lo)
+    covered = {c for trig, c in real if trig in COVERING and c <= hi}
     data = _data_ts(db, lo, hi)
-    last_scan = db.scalar(select(func.max(ScanRun.candle_ts)))
-    last_scan = _utc(last_scan) if last_scan else None
+    last_scan = max((c for _, c in real), default=None)
     blocks: list[Block] = []
     days, no_data_days = [], []
     d = d_from
