@@ -2,6 +2,8 @@
 
 One row per item; groomed items get a spec in [docs/program/backlog/](docs/program/backlog/).
 
+Build order (2 Nov 2026): #19 → #11 → #15 → #2 → #8 → #16 → #18 → #1 → #17 → #3–#6 → #12. Sprints: [01-roadmap.md](docs/product/01-roadmap.md).
+
 | # | Item | Status | Notes |
 |---|------|--------|-------|
 | 1 | Greeks integration | Planned (10 Oct 2026) | Map each CE/PE signal to an option: strike by delta, premium stop/target, theta over the hold, IV flag. |
@@ -22,6 +24,6 @@ One row per item; groomed items get a spec in [docs/program/backlog/](docs/progr
 | 16 | Chat-native UI (replaces nav menus) | Groomed (15 Oct 2026) | One screen: header + live NIFTY/SENSEX strip + chat feed. State-driven chips and a rule-based ask box (no LLM) render existing cards/tables inline with ↗ to the full page; sidebar removed, pages stay as routes. #12 later plugs AI into the same box. Spec: [16-chat-ui.md](docs/program/backlog/16-chat-ui.md), mock: [16-chat-ui-mock.html](docs/program/backlog/16-chat-ui-mock.html). |
 | 17 | Stock futures swing screener | Roadmap (19 Oct 2026) | Bring my F&O stock swing/positional screener into oscout as its own tab/chat answers. Source: `traf/10-swings` (daily scan of F&O stocks via Kite, GTT exits). 4 strategies in a `StrategyRegistry`: Pullback, Failed Breakdown → Reclaim, Support Sweep, Volume Reversal. |
 | 18 | Trade + market journal module | Roadmap (19 Oct 2026) | Solid journal for trades (supersedes #9) and daily market notes: entries, exits, reasons, screenshots, tags, review stats. Logs from the #16 chat box; AI tools (#12) later read it to review and summarise. |
-| 19 | BANKNIFTY as a third index | Backlog | Add BANKNIFTY beside NIFTY and SENSEX (instrument, lot size, expiry, cost per trade, UI cards/filters). Backtest on 2025 and 2026 real data before going live. |
+| 19 | BANKNIFTY as a third index | Backlog, not groomed (first to build) | Add BANKNIFTY beside NIFTY and SENSEX (instrument, lot size, expiry, cost per trade, UI cards/filters). Backtest on 2025 and 2026 real data before going live. |
 | 20 | Breakout vs reversal regime | Brainstorm (28 Oct 2026) | Some days breakouts run, some days they fail and reverse. Detect the day type from ADX swing size; trade breakouts when swings are big, reversals (after the breakout peaks) when they shrink. I write the rules; test on 2025 + 2026 before deciding. Notes: [20-breakout-reversal-regime.md](docs/program/backlog/20-breakout-reversal-regime.md). |
 | 21 | Stuck-position exit playbook | Brainstorm (30 Oct 2026) | Don't average a losing position: exit when stuck and cover the loss by trading the reverse side. Fades of failed P2 signals made money in 2025 and 2026; I set the rules (stuck, entry, size) before any test. Notes: [21-stuck-position-exit.md](docs/program/backlog/21-stuck-position-exit.md). |
