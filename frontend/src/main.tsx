@@ -6,6 +6,7 @@ import "./index.css";
 import { RefreshContext } from "./lib/hooks";
 import Dashboard from "./pages/Dashboard";
 import { Analytics, PerformanceOverview, Trades } from "./pages/Performance";
+import Gaps from "./pages/Gaps";
 import ScanHistory from "./pages/Scans";
 import { LiveSignals, SignalHistory } from "./pages/Signals";
 import Strategy from "./pages/Strategy";
@@ -22,6 +23,7 @@ export function App() {
           <Route path="signals/live" element={<LiveSignals />} />
           <Route path="signals/history" element={<SignalHistory />} />
           <Route path="scans" element={<ScanHistory />} />
+          <Route path="gaps" element={<Gaps />} />
           <Route path="performance" element={<PerformanceOverview />} />
           <Route path="performance/trades" element={<Trades />} />
           <Route path="performance/analytics" element={<Analytics />} />

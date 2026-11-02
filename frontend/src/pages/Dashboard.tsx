@@ -55,7 +55,7 @@ function SignalBlock({ s, onOpen }: { s: Setup; onOpen: () => void }) {
     <div className={`rounded-lg border-l-4 ${up ? "border-l-good" : "border-l-bad"} bg-raise/60 px-4 py-3`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className={`text-xl font-bold ${up ? "text-good" : "text-bad"}`}>{s.direction} BUY <span className="text-sm font-medium text-ink-faint">({up ? "CE" : "PE"})</span></div>
-        <div className="flex items-center gap-2">{t && <Badge s={t.verdict} />}<Badge s={s.state} /><button className="btn" onClick={onOpen}>Lifecycle</button></div>
+        <div className="flex items-center gap-2">{s.late && <Badge s="LATE" label="LATE" />}{t && <Badge s={t.verdict} />}<Badge s={s.state} /><button className="btn" onClick={onOpen}>Lifecycle</button></div>
       </div>
       <dl className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm">
         <div><dt className="text-xs text-ink-faint">Signal</dt><dd className="num">{timeIST(s.signal_ts)} IST</dd></div>

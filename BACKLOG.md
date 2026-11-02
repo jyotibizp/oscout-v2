@@ -7,7 +7,7 @@ Build order (2 Nov 2026): #19 → #11 → #15 → #2 → #8 → #16 → #18 → 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
 | 1 | Greeks integration | Planned (10 Oct 2026) | Map each CE/PE signal to an option: strike by delta, premium stop/target, theta over the hold, IV flag. |
-| 2 | Scan gaps page (user-driven backfill) | Groomed (13 Oct 2026) | Page lists missing scan blocks (total, per block candle count) and fills the ones I select; latest block full fill, interior blocks record-only; no auto fill. Spec: [02-scan-backfill.md](docs/program/backlog/02-scan-backfill.md). |
+| 2 | Scan gaps page (user-driven backfill) | Done (2 Nov 2026) | Page lists missing scan blocks (total, per block candle count) and fills the ones I select; latest block full fill, interior blocks record-only; no auto fill. Spec: [02-scan-backfill.md](docs/program/backlog/02-scan-backfill.md). |
 | 3 | Breakout pre-alert | Backlog | Mid-candle "breakout forming" heads-up when the forming 5m candle would meet the breakout rule; the real signal still waits for the candle close. |
 | 4 | Leading indicator: Bollinger squeeze | Backlog | Bollinger Bands inside Keltner Channels flags compression before ADX drops. Feeds the pre-alert (#3); keep only if the replay shows a gain. |
 | 5 | Leading indicator: range contraction | Backlog | NR7, inside bars, falling ATR: price-only compression hints for the pre-alert (#3). |

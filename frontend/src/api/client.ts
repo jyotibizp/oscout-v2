@@ -52,6 +52,9 @@ export interface OptionChain {
   rows: { strike: number; ce: ChainSide | null; pe: ChainSide | null }[];
   signal: { direction: "CALL" | "PUT"; option: "CE" | "PE"; strike: number; target_delta: number } | null;
 }
+export interface GapBlock { id: string; date: string; start: string; end: string; candles: number; type: "LATEST" | "INTERIOR"; data: "FULL" | "PARTIAL" | "NONE"; selectable: boolean }
+export interface Gaps { from: string; to: string; total_missing: number; days: { date: string; expected: number; missing: number }[]; no_data_days: string[]; blocks: GapBlock[] }
+export interface GapFillResult { id: string; status: "FILLED" | "SKIPPED" | "NO_DATA"; mode?: "FULL" | "RECORD_ONLY"; scans?: number; signals?: number; message?: string }
 export interface ScanRun { id: number; trigger: string; candle_ts: string | null; started_at: string; finished_at: string | null; status: string; config_version: string; summary: any }
 export interface Trade {
   id: number; setup_id: number; symbol: string; direction: string; status: string; entry_ts: string; entry_price: number;
@@ -94,6 +97,8 @@ export const api = {
   events: (category?: string) => req<{ id: number; ts: string; level: string; category: string; message: string; data: any }[]>(`/api/system/events${qs({ category, limit: 200 })}`),
   scanNow: () => req<{ run: ScanRun; results: ScanResult[] }>("/api/scans/run", { method: "POST" }),
   latest: () => req<{ run: ScanRun | null; symbols: Record<string, ScanResult | null> }>("/api/scans/latest"),
+  gaps: (from?: string, to?: string) => req<Gaps>(`/api/scans/gaps${qs({ from, to })}`),
+  fillGaps: (blocks: string[]) => req<{ results: GapFillResult[] }>("/api/scans/gaps/fill", { method: "POST", body: JSON.stringify({ blocks }) }),
   scanHistory: (p: Record<string, string | number | undefined>) => req<{ total: number; items: ScanResult[] }>(`/api/scans/history${qs(p)}`),
   scanResult: (id: number) => req<ScanResult>(`/api/scans/results/${id}`),
   activeSignals: () => req<{ active: Setup[]; pending: Setup[]; exited_today: Setup[] }>("/api/signals/active"),
@@ -106,8 +111,8 @@ export const api = {
   saveConfig: (params: ConfigResp["params"], note?: string) => req<{ version: string; changed: { group: string; key: string; old: any; new: any }[]; message?: string }>("/api/config", { method: "PUT", body: JSON.stringify({ params, note }) }),
   resetConfig: () => req<{ version: string }>("/api/config/reset", { method: "POST" }),
   configVersions: () => req<{ id: number; version: string; is_active: boolean; note: string | null; created_at: string }[]>("/api/config/versions"),
-  summary: (symbol?: string) => req<Summary>(`/api/performance/summary${qs({ symbol })}`),
+  summary: (symbol?: string, exclude_late?: boolean) => req<Summary>(`/api/performance/summary${qs({ symbol, exclude_late: exclude_late ? "true" : undefined })}`),
   trades: (p: Record<string, string | undefined> = {}) => req<Trade[]>(`/api/performance/trades${qs(p)}`),
-  equity: () => req<{ ts: string; symbol: string; pnl_points: number; cum_points: number; r: number | null; cum_r: number }[]>("/api/performance/equity"),
-  analytics: () => req<Record<string, any[]>>("/api/performance/analytics"),
+  equity: (exclude_late?: boolean) => req<{ ts: string; symbol: string; pnl_points: number; cum_points: number; r: number | null; cum_r: number }[]>(`/api/performance/equity${qs({ exclude_late: exclude_late ? "true" : undefined })}`),
+  analytics: (exclude_late?: boolean) => req<Record<string, any[]>>(`/api/performance/analytics${qs({ exclude_late: exclude_late ? "true" : undefined })}`),
 };

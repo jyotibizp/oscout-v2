@@ -42,13 +42,13 @@ def trade(t: Trade | None) -> dict | None:
             "atr_status": t.atr_status, "vix_entry": t.vix_entry}
 
 
-def setup(s: SignalSetup, events: list[SignalEvent] | None = None, t: Trade | None = None) -> dict:
+def setup(s: SignalSetup, events: list[SignalEvent] | None = None, t: Trade | None = None, late: bool = False) -> dict:
     d = {"id": s.id, "symbol": s.symbol, "direction": s.direction, "state": s.state, "breakout_ts": iso(s.breakout_ts),
          "detected_at": iso(s.detected_at), "config_version": s.config_version, "breakout": s.breakout,
          "signal_ts": iso(s.signal_ts), "entry_price": s.entry_price, "entry_atr": s.entry_atr, "stop_price": s.stop_price,
          "target_price": s.target_price, "signal_context": s.signal_context, "peak_adx": s.peak_adx,
          "exit_ts": iso(s.exit_ts), "exit_price": s.exit_price, "exit_reason": s.exit_reason,
-         "closed_reason": s.closed_reason, "trade": trade(t),
+         "closed_reason": s.closed_reason, "trade": trade(t), "late": late,
          "testing": s.symbol in testing_symbols()}
     if events is not None:
         d["events"] = [{"id": e.id, "event": e.event, "candle_ts": iso(e.candle_ts), "price": e.price, "note": e.note,

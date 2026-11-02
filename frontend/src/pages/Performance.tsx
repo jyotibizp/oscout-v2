@@ -8,16 +8,18 @@ import { dateTimeIST, minutes, n, signed } from "../lib/format";
 import { useApi } from "../lib/hooks";
 
 export function PerformanceOverview() {
-  const sum = useApi(() => api.summary(), [], 60000);
-  const eq = useApi(api.equity, [], 60000);
-  const an = useApi(api.analytics, [], 60000);
+  const [noLate, setNoLate] = useState(false);
+  const sum = useApi(() => api.summary(undefined, noLate), [noLate], 60000);
+  const eq = useApi(() => api.equity(noLate), [noLate], 60000);
+  const an = useApi(() => api.analytics(noLate), [noLate], 60000);
   const t = sum.data?.trading;
   const s = sum.data?.signals;
   const fu = sum.data?.funnel;
   const bucket = (k: string) => (an.data?.[k] ?? []).map((r: any) => ({ label: r.bucket, value: r.net_points ?? 0, sub: `${r.trades} trades · win ${r.win_rate ?? "—"}%` }));
   return (
     <div>
-      <PageHeader title="Performance" sub="Measured on the underlying index move (points / R), per closed signal" />
+      <PageHeader title="Performance" sub="Measured on the underlying index move (points / R), per closed signal"
+        right={<label className="flex items-center gap-2 text-sm text-ink-soft"><input type="checkbox" checked={noLate} onChange={(e) => setNoLate(e.target.checked)} />Excluding late (gap-filled) signals</label>} />
       <ErrorNote error={sum.error} />
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-5">
         <Stat label="Signals" value={s?.total_signals ?? "—"} sub={`${s?.call_signals ?? 0} CALL · ${s?.put_signals ?? 0} PUT`} />

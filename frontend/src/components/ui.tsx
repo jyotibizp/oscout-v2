@@ -31,6 +31,7 @@ const TONE: Record<string, string> = {
   TRAIL: "text-accent border-accent/50 bg-accent/10",
   WATCH: "text-warn border-warn/40 bg-warn/10",
   EXIT: "text-bad border-bad/40 bg-bad/10",
+  LATE: "text-warn border-warn/40 bg-warn/10",
 };
 const ICON: Record<string, string> = { PASS: "✓", FAIL: "✕", FAILED: "✕", WAIT: "…", SKIP: "—", SIGNAL: "●", EXHAUSTED: "!", REJECTED: "✕", WATCH: "!", EXIT: "■" };
 

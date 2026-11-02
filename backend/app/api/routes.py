@@ -22,6 +22,7 @@ from app.market.symbols import TRADABLE, testing_symbols
 from app.options import chain as option_chain
 from app.performance import metrics
 from app.scanner.scheduler import auto_scanner
+from app.scanner import gaps
 from app.scanner.service import run_scan
 from app.signals.lifecycle import OPEN
 from app.signals.tracking import track
@@ -90,6 +91,33 @@ def scans_latest(db: Session = Depends(get_db)):
     return {"run": ser.scan_run(run) if run else None, "symbols": out}
 
 
+class GapFill(BaseModel):
+    blocks: list[str]
+
+
+@router.get("/scans/gaps")
+def scans_gaps(date_from: date | None = Query(None, alias="from"), date_to: date | None = Query(None, alias="to"),
+               db: Session = Depends(get_db)):
+    """Completed 5m candles with no AUTO/BACKFILL scan, grouped into blocks. Default: last 5 trading days."""
+    today = to_ist(now_utc()).date()
+    if date_from is None:
+        date_from, n = today, 0
+        while n < 4:
+            date_from -= timedelta(days=1)
+            n += date_from.weekday() < 5
+    return gaps.find(db, date_from, date_to or today)
+
+
+@router.post("/scans/gaps/fill")
+def scans_gaps_fill(body: GapFill, db: Session = Depends(get_db)):
+    try:
+        return {"results": gaps.fill(db, get_provider(), body.blocks)}
+    except gaps.FillBusy as e:
+        raise HTTPException(409, str(e))
+    except AuthError as e:
+        raise HTTPException(401, str(e))
+
+
 @router.get("/scans/history")
 def scans_history(symbol: str | None = None, final: str | None = None, state: str | None = None,
                   direction: str | None = None, gate_failed: str | None = None, date_from: date | None = None,
@@ -134,9 +162,10 @@ def scan_detail(sid: int, db: Session = Depends(get_db)):
 
 
 # ---------------- signals ----------------
-def _setup_full(db: Session, s: SignalSetup) -> dict:
+def _setup_full(db: Session, s: SignalSetup, late: set[int] | None = None) -> dict:
     events = db.scalars(select(SignalEvent).where(SignalEvent.setup_id == s.id).order_by(SignalEvent.id)).all()
-    return ser.setup(s, events, db.scalar(select(Trade).where(Trade.setup_id == s.id)))
+    late = gaps.late_setup_ids(db) if late is None else late
+    return ser.setup(s, events, db.scalar(select(Trade).where(Trade.setup_id == s.id)), s.id in late)
 
 
 @router.get("/signals/active")
@@ -145,18 +174,19 @@ def signals_active(db: Session = Depends(get_db)):
     pending = db.scalars(select(SignalSetup).where(SignalSetup.state.in_(("BREAKOUT_DETECTED", "WAITING_CONFIRMATION")))
                          .order_by(SignalSetup.id.desc())).all()
     _, cfg = store.get_active(db)
+    late = gaps.late_setup_ids(db)
     last: dict = {}
     active = []
     for s in rows:
         if s.symbol not in last:
             bars = load_bars(db, s.symbol, "5m", cfg.five_min.adx_period, cfg.atr.atr_period, 1)
             last[s.symbol] = bars[-1] if bars else None
-        active.append({**_setup_full(db, s), "tracking": track(s, last[s.symbol], cfg)})
+        active.append({**_setup_full(db, s, late), "tracking": track(s, last[s.symbol], cfg)})
     day_start = as_utc(datetime.combine(to_ist(now_utc()).date(), time(0), tzinfo=IST))
     exited = db.scalars(select(SignalSetup).where(SignalSetup.state == "EXIT_TRIGGERED", SignalSetup.exit_ts >= day_start)
                         .order_by(SignalSetup.exit_ts.desc())).all()
-    return {"active": active, "pending": [_setup_full(db, s) for s in pending],
-            "exited_today": [ser.setup(s, None, db.scalar(select(Trade).where(Trade.setup_id == s.id))) for s in exited]}
+    return {"active": active, "pending": [_setup_full(db, s, late) for s in pending],
+            "exited_today": [ser.setup(s, None, db.scalar(select(Trade).where(Trade.setup_id == s.id)), s.id in late) for s in exited]}
 
 
 @router.get("/signals/history")
@@ -183,6 +213,7 @@ def signals_history(symbol: str | None = None, direction: str | None = None, sta
     if hi:
         q = q.where(SignalSetup.breakout_ts <= hi)
     rows = db.scalars(q.order_by(SignalSetup.id.desc()).offset(offset).limit(limit * 3 if vix_regime else limit)).all()
+    late = gaps.late_setup_ids(db)
     items = []
     for s in rows:
         t = db.scalar(select(Trade).where(Trade.setup_id == s.id))
@@ -191,7 +222,7 @@ def signals_history(symbol: str | None = None, direction: str | None = None, sta
             reg = None if v is None else "LOW" if v < 13 else "NORMAL" if v < 18 else "HIGH"
             if reg != vix_regime:
                 continue
-        items.append(ser.setup(s, None, t))
+        items.append(ser.setup(s, None, t, s.id in late))
     total = db.scalar(select(func.count()).select_from(q.subquery()))
     return {"total": total, "items": items[:limit]}
 
@@ -249,8 +280,9 @@ def config_versions(db: Session = Depends(get_db)):
 
 # ---------------- performance ----------------
 @router.get("/performance/summary")
-def perf_summary(symbol: str | None = None, version: str | None = None, db: Session = Depends(get_db)):
-    return metrics.summary(db, symbol, version)
+def perf_summary(symbol: str | None = None, version: str | None = None, exclude_late: bool = False,
+                 db: Session = Depends(get_db)):
+    return metrics.summary(db, symbol, version, exclude_late)
 
 
 @router.get("/performance/trades")
@@ -267,13 +299,13 @@ def perf_trades(symbol: str | None = None, direction: str | None = None, status:
 
 
 @router.get("/performance/equity")
-def perf_equity(symbol: str | None = None, db: Session = Depends(get_db)):
-    return metrics.equity_curve(db, symbol)
+def perf_equity(symbol: str | None = None, exclude_late: bool = False, db: Session = Depends(get_db)):
+    return metrics.equity_curve(db, symbol, exclude_late)
 
 
 @router.get("/performance/analytics")
-def perf_analytics(db: Session = Depends(get_db)):
-    return metrics.analytics(db)
+def perf_analytics(exclude_late: bool = False, db: Session = Depends(get_db)):
+    return metrics.analytics(db, exclude_late)
 
 
 # ---------------- system ----------------

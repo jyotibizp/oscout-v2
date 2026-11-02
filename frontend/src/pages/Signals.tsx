@@ -74,7 +74,7 @@ export function SignalHistory() {
                   <td className="td text-xs">{c.atr_status ?? "—"}</td><td className="td num">{n(c.vix, 2)}</td>
                   <td className="td"><Badge s="PASS" /></td><td className="td"><Badge s={g2} /></td>
                   <td className="td"><Badge s={atrS} /></td><td className="td"><Badge s={vixS} /></td>
-                  <td className="td">{q ? <Badge s="SIGNAL" label={`${s.direction} BUY`} /> : <span className="text-xs text-ink-faint" title={rej}>{s.state === "EXPIRED" ? "EXPIRED" : "REJECTED"}</span>}</td>
+                  <td className="td">{q ? <><Badge s="SIGNAL" label={`${s.direction} BUY`} />{s.late && <Badge s="LATE" label="LATE" className="ml-1" />}</> : <span className="text-xs text-ink-faint" title={rej}>{s.state === "EXPIRED" ? "EXPIRED" : "REJECTED"}</span>}</td>
                   <td className="td"><Badge s={s.state} /></td>
                   <td className={`td num ${(s.trade?.pnl_points ?? 0) > 0 ? "text-good" : s.trade?.pnl_points ? "text-bad" : "text-ink-faint"}`}>{s.trade?.pnl_points !== null && s.trade?.pnl_points !== undefined ? `${signed(s.trade.pnl_points)} pts` : "—"}</td>
                 </tr>

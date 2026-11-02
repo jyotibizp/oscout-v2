@@ -8,8 +8,13 @@ from app.core.clock import to_ist
 from app.db.models import ScanResult, ScanRun, SignalSetup, Trade
 
 
-def _trades(db: Session, symbol: str | None = None, version: str | None = None) -> list[Trade]:
+def _trades(db: Session, symbol: str | None = None, version: str | None = None, exclude_late: bool = False) -> list[Trade]:
     q = select(Trade).where(Trade.status == "CLOSED")
+    if exclude_late:
+        from app.scanner.gaps import late_setup_ids
+        late = late_setup_ids(db)
+        if late:
+            q = q.where(Trade.setup_id.not_in(late))
     if symbol:
         q = q.where(Trade.symbol == symbol)
     if version:
@@ -43,8 +48,8 @@ def trade_stats(ts: list[Trade]) -> dict:
             "avg_holding_minutes": round(sum(t.holding_minutes or 0 for t in ts) / n, 1)}
 
 
-def summary(db: Session, symbol: str | None = None, version: str | None = None) -> dict:
-    ts = _trades(db, symbol, version)
+def summary(db: Session, symbol: str | None = None, version: str | None = None, exclude_late: bool = False) -> dict:
+    ts = _trades(db, symbol, version, exclude_late)
     scans = db.scalar(select(func.count()).select_from(ScanRun)) or 0
     setups = db.scalar(select(func.count()).select_from(SignalSetup)) or 0
     sig_q = select(SignalSetup.direction, func.count()).where(SignalSetup.signal_ts.is_not(None)).group_by(SignalSetup.direction)
@@ -71,9 +76,9 @@ def funnel(db: Session) -> dict:
             "rejection_rate": {"gate1": rate(g1, total), "gate2": rate(g2, g1), "atr": rate(atr, g2), "vix": rate(vix, atr)}}
 
 
-def equity_curve(db: Session, symbol: str | None = None) -> list[dict]:
+def equity_curve(db: Session, symbol: str | None = None, exclude_late: bool = False) -> list[dict]:
     out, eq, eqr = [], 0.0, 0.0
-    for t in _trades(db, symbol):
+    for t in _trades(db, symbol, exclude_late=exclude_late):
         eq += t.pnl_points
         eqr += t.r_multiple or 0
         out.append({"ts": t.exit_ts.isoformat(), "symbol": t.symbol, "pnl_points": t.pnl_points, "cum_points": round(eq, 2),
@@ -90,8 +95,8 @@ def _bucket(v, edges, labels):
     return labels[-1]
 
 
-def analytics(db: Session) -> dict:
-    ts = _trades(db)
+def analytics(db: Session, exclude_late: bool = False) -> dict:
+    ts = _trades(db, exclude_late=exclude_late)
     dims = {
         "symbol": lambda t: t.symbol,
         "direction": lambda t: t.direction,

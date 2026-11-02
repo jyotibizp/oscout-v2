@@ -1,0 +1,91 @@
+import { useState } from "react";
+import { api, GapBlock, GapFillResult } from "../api/client";
+import { Badge, Empty, ErrorNote, Field, PageHeader, Stat } from "../components/ui";
+import { dateIST, timeIST } from "../lib/format";
+import { useApi } from "../lib/hooks";
+import { useRole } from "../lib/role";
+
+const MODE: Record<string, string> = { LATEST: "full fill", INTERIOR: "record-only" };
+
+/** Scan gaps (#2): completed 5m candles no scan covered, grouped into blocks; I choose which to fill. */
+export default function Gaps() {
+  const [range, setRange] = useState<{ from?: string; to?: string }>({});
+  const gaps = useApi(() => api.gaps(range.from, range.to), [range.from, range.to]);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState<GapFillResult[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const admin = useRole() === "admin";
+  const d = gaps.data;
+  const blocks = d?.blocks ?? [];
+  const chosen = blocks.filter((b) => sel.has(b.id));
+
+  const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const fill = async () => {
+    const lines = chosen.map((b) => `${dateIST(b.start)} ${timeIST(b.start)}–${timeIST(b.end)}: ${b.candles} candles, ${MODE[b.type]}`);
+    if (!window.confirm(`Fill ${chosen.length} block(s)?\n\n${lines.join("\n")}\n\nLatest = scanned in order with the signal lifecycle (signals found are marked late, no chime).\nInterior = scan results recorded only; signals, trades and history are not changed.`)) return;
+    setBusy(true); setError(null); setResults(null);
+    try {
+      const r = await api.fillGaps(chosen.map((b) => b.id));
+      setResults(r.results);
+      setSel(new Set());
+      gaps.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="max-w-5xl">
+      <PageHeader title="Scan gaps" sub="Completed 5m candles that no auto scan covered (app down, Mac asleep, feed error, token expired). Nothing fills by itself."
+        right={
+          <div className="flex flex-wrap items-end gap-2">
+            <Field label="From"><input type="date" className="input" value={range.from ?? d?.from ?? ""} onChange={(e) => setRange({ ...range, from: e.target.value })} /></Field>
+            <Field label="To"><input type="date" className="input" value={range.to ?? d?.to ?? ""} onChange={(e) => setRange({ ...range, to: e.target.value })} /></Field>
+          </div>
+        } />
+      <ErrorNote error={gaps.error ?? error} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <Stat label="Missing candles" value={d?.total_missing ?? "—"} />
+        <Stat label="Blocks" value={blocks.length} />
+        <Stat label="Days scanned" value={d?.days.length ?? "—"} sub={d?.days.filter((x) => x.missing).map((x) => `${dateIST(x.date)}: ${x.missing}`).join(" · ") || "no gaps"} />
+        <Stat label="Days without candles" value={d?.no_data_days.length ?? "—"} sub="holidays, or never synced" />
+      </div>
+
+      {results && (
+        <div className="card p-4 mb-5 text-sm space-y-1" aria-label="Fill results">
+          {results.map((r) => (
+            <p key={r.id}><Badge s={r.status === "FILLED" ? "PASS" : "WAIT"} label={r.status.replace("_", " ")} />{" "}
+              {dateIST(r.id)} {timeIST(r.id)}: {r.status === "FILLED" ? `${r.scans} scans written (${r.mode === "FULL" ? "full fill" : "record-only"}), ${r.signals} signal(s)` : r.message}</p>
+          ))}
+        </div>
+      )}
+
+      {!blocks.length ? <Empty>{gaps.loading ? "Checking…" : "No gaps in this range."}</Empty> : (
+        <div className="card overflow-x-auto">
+          <table className="w-full">
+            <thead><tr><th className="th w-8" /><th className="th">Date</th><th className="th">From – to (IST)</th><th className="th">Candles</th><th className="th">Type</th><th className="th">Data</th></tr></thead>
+            <tbody>
+              {blocks.map((b: GapBlock) => (
+                <tr key={b.id} className={b.selectable ? "" : "opacity-60"}>
+                  <td className="td"><input type="checkbox" aria-label={`Select ${b.id}`} disabled={!b.selectable || !admin || busy} checked={sel.has(b.id)} onChange={() => toggle(b.id)} /></td>
+                  <td className="td">{dateIST(b.start)}</td>
+                  <td className="td num">{timeIST(b.start)} – {timeIST(b.end)}</td>
+                  <td className="td num">{b.candles}</td>
+                  <td className="td"><Badge s={b.type === "LATEST" ? "ACTIVE" : "WATCHING"} label={`${b.type === "LATEST" ? "Latest" : "Interior"} · ${MODE[b.type]}`} /></td>
+                  <td className="td">{b.data === "FULL" ? <Badge s="PASS" label="present" /> : <Badge s="MISSING" label={b.data === "NONE" ? "no data" : "partial"} />}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <p className="text-xs text-ink-faint">Latest: no scans after it, so it is scanned in order with the full signal lifecycle. Interior: later scans exist, so only scan results are recorded.</p>
+            {admin && <button className="btn-primary" disabled={!chosen.length || busy} onClick={fill}>{busy ? "Filling…" : `Fill selected (${chosen.length})`}</button>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

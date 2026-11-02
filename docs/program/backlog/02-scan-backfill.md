@@ -1,6 +1,6 @@
 # #2 Scan gaps page (user-driven backfill)
 
-Status: Groomed (13 Oct 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
+Status: Done (2 Nov 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
 
 **Why:** a glitch (app down, laptop asleep, feed error, Kite token expired) leaves 5m candles unscanned. Signals that would have fired are missing, so live performance tracking is incomplete and can't be compared with the replay. I want to see the gaps and decide myself which to fill; nothing fills automatically.
 
@@ -30,3 +30,8 @@ Status: Groomed (13 Oct 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
 - pytest: gap detection, latest vs interior fill, dedupe; vitest: page renders blocks and fills a selection; existing tests stay green.
 
 **Estimate:** 1 story, ~1 day (gap detection + fill API ~½ day, page + late badge ~½ day). `scan_runs.trigger` (String(8)) already fits "BACKFILL"; no migration needed (late is derived from the scan trigger).
+
+**Built:** `scanner/gaps.py` (find / fill / late_setup_ids), `run_scan(lifecycle=False)` + `SCAN_LOCK` in `scanner/service.py`, `GET /api/scans/gaps`, `POST /api/scans/gaps/fill` (admin), page `pages/Gaps.tsx` (sidebar: Scans → Scan Gaps), LATE badge, Performance "Excluding late" toggle.
+- Latest = no scan of any trigger at or after the block start; a MANUAL scan inside a gap makes it Interior.
+- Days with no candles at all are listed as holidays / never synced, not as gaps.
+- `detected_at` of a late signal = simulated scan time (same as `tools/backfill.py`); "late" comes from the BACKFILL scan.

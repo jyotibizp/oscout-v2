@@ -18,7 +18,7 @@ export function SignalCard({ s, onOpen }: { s: Setup; onOpen?: () => void }) {
           <div className={`text-2xl font-bold ${s.direction === "CALL" ? "text-good" : "text-bad"}`}>{s.direction} BUY</div>
           <div className="text-xs text-ink-soft mt-0.5">ADX BREAKOUT CONFIRMED · v{s.config_version}</div>
         </div>
-        <Badge s={s.state} />
+        <div className="flex gap-1">{s.late && <Badge s="LATE" label="LATE" />}<Badge s={s.state} /></div>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
         <dt className="text-ink-faint">5M ADX</dt><dd className="num text-right">{n(bo.adx_at)} <span className="text-good">↑</span></dd>

@@ -9,7 +9,7 @@ import { useApi, useRefresh } from "../lib/hooks";
 const NAV: { title: string; items: { to: string; label: string }[] }[] = [
   { title: "", items: [{ to: "/", label: "Dashboard" }] },
   { title: "Signals", items: [{ to: "/signals/live", label: "Live Signals" }, { to: "/signals/history", label: "Signal History" }] },
-  { title: "Scans", items: [{ to: "/scans", label: "Scan History" }] },
+  { title: "Scans", items: [{ to: "/scans", label: "Scan History" }, { to: "/gaps", label: "Scan Gaps" }] },
   { title: "Performance", items: [{ to: "/performance", label: "Overview" }, { to: "/performance/trades", label: "Trades" }, { to: "/performance/analytics", label: "Analytics" }] },
   { title: "Strategy", items: [{ to: "/strategy", label: "ADX Configuration" }] },
   { title: "Market Data", items: [{ to: "/data-health", label: "Data Health" }] },
@@ -58,8 +58,8 @@ export function Header({ health, reload }: { health: Health | null; reload: () =
   const [scanning, setScanning] = useState(false);
   const signals = useApi(api.activeSignals, [], 15000);
   const { muted, setMuted } = useSignalChime(
-    signals.data?.active.filter((s) => !s.testing).map((s) => s.id),  // indexes in Testing don't chime (#19)
-    signals.data?.exited_today.filter((s) => !s.testing).map((s) => s.id));
+    signals.data?.active.filter((s) => !s.testing && !s.late).map((s) => s.id),  // Testing indexes (#19) and late fills (#2) don't chime
+    signals.data?.exited_today.filter((s) => !s.testing && !s.late).map((s) => s.id));
   const [msg, setMsg] = useState<string | null>(null);
   const admin = useRole() === "admin";
 

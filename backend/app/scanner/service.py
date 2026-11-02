@@ -4,6 +4,7 @@ Every scan (manual or automatic) writes one scan_runs row and one scan_results r
 rejections, so any decision can be reconstructed later together with the configuration version used.
 """
 import logging
+import threading
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
@@ -27,6 +28,12 @@ log = logging.getLogger(__name__)
 
 class ScanBusy(Exception):
     pass
+
+
+# One scan at a time. Re-entrant: a gap fill holds it across its own scans, so an AUTO scan waits until the fill is done
+# and the lifecycle still sees candles in time order.
+SCAN_LOCK = threading.RLock()
+LATE_NOTE = "late fill, lifecycle not replayed"
 
 
 def ingest_all(db: Session, provider, cfg: StrategyConfig, now: datetime) -> dict:
@@ -88,12 +95,19 @@ def evaluate_symbol(db: Session, symbol: str, cfg: StrategyConfig, now: datetime
 
 
 def run_scan(db: Session, provider, trigger: str = "MANUAL", now: datetime | None = None,
-             ingest: bool = True) -> tuple[ScanRun, bool]:
-    """Returns (scan_run, created). AUTO scans are unique per completed 5m candle."""
+             ingest: bool = True, lifecycle: bool = True) -> tuple[ScanRun, bool]:
+    """Returns (scan_run, created). AUTO and BACKFILL scans share one dedupe key per completed 5m candle.
+    lifecycle=False (interior gap fill): record scan results only; setups, events and trades are left alone."""
+    with SCAN_LOCK:
+        return _run_scan(db, provider, trigger, now, ingest, lifecycle)
+
+
+def _run_scan(db: Session, provider, trigger: str, now: datetime | None, ingest: bool,
+              lifecycle: bool) -> tuple[ScanRun, bool]:
     now = now or now_utc()
     cfg_row, cfg = store.get_active(db)
     candle = latest_completed_start(now, "5m")
-    dedupe = f"AUTO:{candle.isoformat()}" if trigger == "AUTO" else None
+    dedupe = f"AUTO:{candle.isoformat()}" if trigger in ("AUTO", "BACKFILL") else None
     if dedupe and db.scalar(select(ScanRun).where(ScanRun.dedupe_key == dedupe)):
         return db.scalar(select(ScanRun).where(ScanRun.dedupe_key == dedupe)), False
     run = ScanRun(trigger=trigger, candle_ts=candle, dedupe_key=dedupe, started_at=now, status="RUNNING",
@@ -113,10 +127,15 @@ def run_scan(db: Session, provider, trigger: str = "MANUAL", now: datetime | Non
             if res is None:
                 raise RuntimeError(f"No {sym} 5m data")
             stale = res.state == "REJECTED" and res.gate1.status == "FAIL" and "DATA" in res.reason
-            exited = [] if stale else update_open_signals(db, sym, bars5, cfg)
-            setup, state, note = (None, res.state, None) if stale else apply_result(
-                db, res, cfg, cfg_row.id, cfg_row.version, now)
-            if exited and state not in ("SIGNAL_GENERATED",):
+            if not lifecycle:
+                exited, (setup, state, note) = [], (None, res.state, LATE_NOTE)
+            else:
+                exited = [] if stale else update_open_signals(db, sym, bars5, cfg)
+                setup, state, note = (None, res.state, None) if stale else apply_result(
+                    db, res, cfg, cfg_row.id, cfg_row.version, now)
+            if not lifecycle:
+                pass
+            elif exited and state not in ("SIGNAL_GENERATED",):
                 state, note = "EXIT_TRIGGERED", f"{exited[-1].direction} exit: {exited[-1].exit_reason}"
             elif state in ("WATCHING", "COMPRESSION", "EXPIRED"):
                 act = db.scalar(select(SignalSetup).where(SignalSetup.symbol == sym, SignalSetup.state.in_(OPEN)))
