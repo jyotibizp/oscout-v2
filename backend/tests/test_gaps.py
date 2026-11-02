@@ -53,7 +53,7 @@ def test_no_data_day_is_not_a_gap(db):
     assert out["blocks"] == [] and out["no_data_days"] == ["2026-10-07"]
 
 
-def test_interior_fill_is_record_only_and_dedupes(db):
+def test_interior_fill_without_signals_changes_nothing_and_dedupes(db):
     p = MockProvider()
     _ingest(db, p)
     c = _candles()
@@ -61,7 +61,7 @@ def test_interior_fill_is_record_only_and_dedupes(db):
     before = [db.scalar(select(func.count()).select_from(m)) for m in (SignalSetup, SignalEvent, Trade)]
     bid = gaps.find(db, DAY, DAY, NOW)["blocks"][0]["id"]
     res = gaps.fill(db, p, [bid], NOW)
-    assert res == [{"id": bid, "status": "FILLED", "mode": "RECORD_ONLY", "scans": 6, "signals": 0, "missed": res[0]["missed"]}]
+    assert res == [{"id": bid, "status": "FILLED", "mode": "REPLAY", "scans": 6, "signals": 0, "blocked": 0}]
     runs = db.scalars(select(ScanRun).where(ScanRun.trigger == "BACKFILL").order_by(ScanRun.candle_ts)).all()
     assert len(runs) == 6 and [r.candle_ts.replace(tzinfo=None) for r in runs] == [x.replace(tzinfo=None) for x in c[9:15]]
     results = db.scalars(select(ScanResult).where(ScanResult.scan_run_id.in_([r.id for r in runs]))).all()
@@ -182,22 +182,110 @@ def test_scans_on_a_stale_feed_are_gaps_and_a_fill_rescans_them_once(db):
     assert sorted(keys) == sorted(f"BACKFILL:{t.isoformat()}" for t in c[6:9])
 
 
-def test_record_only_fill_flags_missed_signals(tmp_path):
-    """Interior fill over the afternoon that holds a real signal: it is not created, but shows as missed."""
-    p = MockProvider()
-    set_provider(p)
+def _trades(db, since):
+    return [(s.symbol, s.direction, s.signal_ts, s.exit_ts, s.exit_reason, s.exit_price)
+            for s in db.scalars(select(SignalSetup).where(SignalSetup.signal_ts >= since).order_by(SignalSetup.signal_ts))]
+
+
+def _afternoon_gap(path, p):
+    """Live AUTO scans until 13:00 and one at 15:25: the afternoon is an Interior block."""
     c = _candles()
-    b = _fresh(tmp_path / "m.db")
+    b = _fresh(path)
     _ingest(b, p)
     for t in c[:45]:
         run_scan(b, p, "AUTO", t + STEP + timedelta(seconds=20), ingest=False)
-    run_scan(b, p, "AUTO", c[74] + STEP + timedelta(seconds=20), ingest=False)  # a later scan: block is Interior
+    run_scan(b, p, "AUTO", c[74] + STEP + timedelta(seconds=20), ingest=False)
     blk = gaps.find(b, DAY, DAY, NOW)["blocks"]
     assert [x["type"] for x in blk] == ["INTERIOR"]
+    return b, blk[0]["id"]
+
+
+def test_interior_fill_replays_late_trades_append_only(tmp_path):
+    """#23: an Interior fill turns the afternoon's signals into LATE trades that match an unbroken day."""
+    p = MockProvider()
+    set_provider(p)
+    c = _candles()
+    a = _fresh(tmp_path / "a.db")
+    _ingest(a, p)
+    for t in c:
+        run_scan(a, p, "AUTO", t + STEP + timedelta(seconds=20), ingest=False)
+    want = _trades(a, c[45])
+    assert want, "mock afternoon should hold a signal"
+    a.close()
+
+    b, bid = _afternoon_gap(tmp_path / "b.db", p)
+    live = {s.id: (s.state, s.exit_ts) for s in b.scalars(select(SignalSetup))}
+    res = gaps.fill(b, p, [bid], NOW)[0]
+    assert res["mode"] == "REPLAY" and res["signals"] == len(want)
+    assert {s.id: (s.state, s.exit_ts) for s in b.scalars(select(SignalSetup)) if s.id in live} == live  # untouched
+    assert _trades(b, c[45]) == want
+    late = gaps.late_setup_ids(b)
+    new = [s for s in b.scalars(select(SignalSetup)) if s.id not in live]
+    assert new and {s.id for s in new} <= late
+    assert all(s.state == "EXIT_TRIGGERED" for s in new if s.signal_ts)
+    assert all(t.status == "CLOSED" for t in b.scalars(select(Trade).where(Trade.setup_id.in_([s.id for s in new]))))
+    assert gaps.unreplayed(b) == []
+    b.close()
+
+
+def test_late_signal_is_rejected_while_a_trade_was_open(tmp_path):
+    p = MockProvider()
+    set_provider(p)
+    c = _candles()
+    b, bid = _afternoon_gap(tmp_path / "b.db", p)
+    first = c[45]
+    row, _ = store.get_active(b)
+    blockers = [SignalSetup(symbol=sym, direction="CALL", state="EXIT_TRIGGERED", breakout_ts=first - STEP,
+                            detected_at=first, config_id=row.id, config_version=row.version, signal_ts=first, breakout={},
+                            entry_price=1.0, stop_price=0.5, target_price=2.0, exit_ts=c[74], exit_reason="TEST")
+                for sym in TRADABLE]
+    b.add_all(blockers)
+    b.commit()
+    ids = {x.id for x in blockers}
+    res = gaps.fill(b, p, [bid], NOW)[0]
+    late = [s for s in b.scalars(select(SignalSetup).where(SignalSetup.breakout_ts >= first)) if s.id not in ids]
+    assert res["signals"] == 0 and res["blocked"] > 0
+    assert late and all(s.signal_ts is None and s.state == "REJECTED" for s in late)
+    assert all(b.get(SignalSetup, i).exit_reason == "TEST" for i in ids)
+    b.close()
+
+
+def test_open_late_signal_never_blocks_live(db):
+    from app.signals.lifecycle import live_open
+    row, _ = store.get_active(db)
+    s = SignalSetup(symbol="NIFTY", direction="CALL", state="ACTIVE", breakout_ts=NOW, detected_at=NOW,
+                    config_id=row.id, config_version=row.version, signal_ts=NOW, entry_price=1.0, breakout={},
+                    signal_context={"late": True})
+    db.add(s)
+    db.commit()
+    assert live_open(db, "NIFTY") is None
+    s.signal_context = {}
+    db.commit()
+    assert live_open(db, "NIFTY").id == s.id
+
+
+def test_replay_catches_up_record_only_fills(tmp_path, monkeypatch):
+    """Blocks filled record-only before #23 show as missed; the catch-up replays them once, old rows untouched."""
+    from app.api.serializers import LATE_NOTE
+    from app.scanner import service
+    p = MockProvider()
+    set_provider(p)
+    c = _candles()
+    b, bid = _afternoon_gap(tmp_path / "b.db", p)
+    monkeypatch.setattr(service, "create_late_signal", lambda db, res, *a: (None, res.state, LATE_NOTE))
+    gaps.fill(b, p, [bid], NOW)
+    monkeypatch.undo()
     before = b.scalar(select(func.count()).select_from(SignalSetup))
-    res = gaps.fill(b, p, [blk[0]["id"]], NOW)[0]
-    assert res["signals"] == 0 and res["missed"] > 0
-    assert b.scalar(select(func.count()).select_from(SignalSetup)) == before
-    items = client_at("127.0.0.1").get("/api/scans/history", params={"missed": "true"}).json()["items"]
-    assert len(items) == res["missed"] and all(i["missed"] and i["state"] == "QUALIFIED" for i in items)
+    pending = gaps.unreplayed(b)
+    cl = client_at("127.0.0.1")
+    assert pending and cl.get("/api/scans/gaps", params={"from": DAY.isoformat(), "to": DAY.isoformat()}).json()["replay_pending"] == len(pending)
+    old = {r.id: (r.state, r.final_result, r.setup_id) for r in b.scalars(select(ScanResult))}
+    out = cl.post("/api/scans/gaps/replay").json()
+    assert out["breakouts"] == len(pending) and out["signals"] + out["blocked"] + out["skipped"] == len(pending)
+    assert out["signals"] > 0 and b.scalar(select(func.count()).select_from(SignalSetup)) > before
+    b.expire_all()
+    assert {r.id: (r.state, r.final_result, r.setup_id) for r in b.scalars(select(ScanResult))} == old  # append-only
+    assert gaps.unreplayed(b) == [] and cl.post("/api/scans/gaps/replay").json()["breakouts"] == 0
+    items = cl.get("/api/scans/history", params={"missed": "true"}).json()["items"]
+    assert items and all(i.get("replayed") for i in items)
     b.close()

@@ -106,7 +106,7 @@ def scans_gaps(date_from: date | None = Query(None, alias="from"), date_to: date
         while n < 4:
             date_from -= timedelta(days=1)
             n += date_from.weekday() < 5
-    return gaps.find(db, date_from, date_to or today)
+    return {**gaps.find(db, date_from, date_to or today), "replay_pending": len(gaps.unreplayed(db))}
 
 
 @router.post("/scans/gaps/fill")
@@ -117,6 +117,15 @@ def scans_gaps_fill(body: GapFill, db: Session = Depends(get_db)):
         raise HTTPException(409, str(e))
     except AuthError as e:
         raise HTTPException(401, str(e))
+
+
+@router.post("/scans/gaps/replay")
+def scans_gaps_replay(db: Session = Depends(get_db)):
+    """#23 catch-up: replay qualified breakouts of blocks filled record-only before replay fills existed."""
+    try:
+        return gaps.replay_filled(db)
+    except gaps.FillBusy as e:
+        raise HTTPException(409, str(e))
 
 
 @router.get("/scans/history")
@@ -146,7 +155,15 @@ def scans_history(symbol: str | None = None, final: str | None = None, state: st
     total = db.scalar(select(func.count()).select_from(q.subquery()))
     # candle order, not insert order: gap fills write old candles late (#2)
     rows = db.scalars(q.order_by(ScanResult.candle_ts.desc(), ScanResult.id.desc()).offset(offset).limit(limit)).all()
-    return {"total": total, "items": [ser.scan_result(r) for r in rows]}
+    items = [ser.scan_result(r) for r in rows]
+    if any(i["missed"] for i in items):  # old record-only rows: show what the #23 replay made of the breakout
+        keys = gaps._setup_keys(db)
+        for i, r in zip(items, rows):
+            k = gaps._breakout_key(r) if i["missed"] else None
+            s = k and keys.get((k[0], gaps._utc(datetime.fromisoformat(k[1])).isoformat(), k[2]))
+            if s:
+                i["replayed"] = {"setup_id": s.id, "state": s.state, "traded": s.signal_ts is not None}
+    return {"total": total, "items": items}
 
 
 @router.get("/scans/results/{rid}")
@@ -217,7 +234,8 @@ def signals_history(symbol: str | None = None, direction: str | None = None, sta
         q = q.where(SignalSetup.breakout_ts >= lo)
     if hi:
         q = q.where(SignalSetup.breakout_ts <= hi)
-    rows = db.scalars(q.order_by(SignalSetup.id.desc()).offset(offset).limit(limit * 3 if vix_regime else limit)).all()
+    # breakout order, not insert order: replay fills (#23) add old setups late
+    rows = db.scalars(q.order_by(SignalSetup.breakout_ts.desc(), SignalSetup.id.desc()).offset(offset).limit(limit * 3 if vix_regime else limit)).all()
     late = gaps.late_setup_ids(db)
     items = []
     for s in rows:

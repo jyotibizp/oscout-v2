@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { api, GapBlock, GapFillResult } from "../api/client";
+import { api, GapBlock, GapFillResult, ReplayResult } from "../api/client";
 import { Badge, Empty, ErrorNote, PageHeader, Stat } from "../components/ui";
 import { dateIST, timeIST } from "../lib/format";
 import { useApi } from "../lib/hooks";
 import { useRole } from "../lib/role";
 
-const MODE: Record<string, string> = { LATEST: "full fill", INTERIOR: "record-only" };
+const MODE: Record<string, string> = { LATEST: "full fill", INTERIOR: "replay" };
 
 /** Scan gaps (#2): completed 5m candles no scan covered, grouped into blocks; I choose which to fill. */
 export default function Gaps() {
@@ -15,6 +15,7 @@ export default function Gaps() {
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<GapFillResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [replayed, setReplayed] = useState<ReplayResult | null>(null);
   const admin = useRole() === "admin";
   const d = gaps.data;
   const blocks = d?.blocks ?? [];
@@ -23,12 +24,26 @@ export default function Gaps() {
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const fill = async () => {
     const lines = chosen.map((b) => `${dateIST(b.start)} ${timeIST(b.start)}–${timeIST(b.end)}: ${b.candles} candles, ${MODE[b.type]}`);
-    if (!window.confirm(`Fill ${chosen.length} block(s)?\n\n${lines.join("\n")}\n\nLatest = scanned in order with the signal lifecycle (signals found are marked late, no chime).\nInterior = scan results recorded only; signals, trades and history are not changed.`)) return;
+    if (!window.confirm(`Fill ${chosen.length} block(s)?\n\n${lines.join("\n")}\n\nLatest = scanned in order with the signal lifecycle (signals found are marked late, no chime).\nInterior = replayed: qualified setups become LATE trades run to their own exit; existing signals and trades are not changed.`)) return;
     setBusy(true); setError(null); setResults(null);
     try {
       const r = await api.fillGaps(chosen.map((b) => b.id));
       setResults(r.results);
       setSel(new Set());
+      gaps.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const replay = async () => {
+    const n = d?.replay_pending ?? 0;
+    if (!window.confirm(`Replay ${n} missed breakout(s) from blocks filled before replay existed?\n\nEach becomes a LATE trade run to its own exit (or rejected if a trade on that index was open). Only adds rows; old scan rows stay as they are.`)) return;
+    setBusy(true); setError(null); setReplayed(null);
+    try {
+      setReplayed(await api.replayFilled());
       gaps.reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -55,11 +70,21 @@ export default function Gaps() {
         <Stat label="Days without candles" value={d?.no_data_days.length ?? "—"} sub="holidays, or never synced" />
       </div>
 
+      {admin && !!d?.replay_pending && (
+        <div className="card p-4 mb-5 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p className="text-ink-soft">{d.replay_pending} missed breakout(s) in blocks filled record-only (before replay). Replay them into LATE trades for Performance.</p>
+          <button className="btn-primary" disabled={busy} onClick={replay}>{busy ? "Replaying…" : `Replay filled blocks (${d.replay_pending})`}</button>
+        </div>
+      )}
+      {replayed && (
+        <p className="card p-4 mb-5 text-sm" aria-label="Replay results">Replayed {replayed.breakouts} breakout(s): {replayed.signals} LATE trade(s), {replayed.blocked} rejected (trade already open), {replayed.skipped} no longer qualify.</p>
+      )}
+
       {results && (
         <div className="card p-4 mb-5 text-sm space-y-1" aria-label="Fill results">
           {results.map((r) => (
             <p key={r.id}><Badge s={r.status === "FILLED" ? "PASS" : "WAIT"} label={r.status.replace("_", " ")} />{" "}
-              {dateIST(r.id)} {timeIST(r.id)}: {r.status === "FILLED" ? `${r.scans} scans written (${r.mode === "FULL" ? `full fill, ${r.signals} signal(s)` : `record-only, ${r.missed ?? 0} missed-signal candle(s)`})` : r.message}</p>
+              {dateIST(r.id)} {timeIST(r.id)}: {r.status === "FILLED" ? `${r.scans} scans written (${r.mode === "FULL" ? `full fill, ${r.signals} signal(s)` : `replay, ${r.signals} LATE trade(s), ${r.blocked ?? 0} rejected (trade already open)`})` : r.message}</p>
           ))}
         </div>
       )}
@@ -82,7 +107,7 @@ export default function Gaps() {
             </tbody>
           </table>
           <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-            <p className="text-xs text-ink-faint">Latest: no scans after it, so it is scanned in order with the full signal lifecycle. Interior: later scans exist, so only scan results are recorded.</p>
+            <p className="text-xs text-ink-faint">Latest: no scans after it, so it is scanned in order with the full signal lifecycle. Interior: later scans exist, so it is replayed: qualified setups become LATE trades run to their own exit, nothing existing is changed.</p>
             {admin && <button className="btn-primary" disabled={!chosen.length || busy} onClick={fill}>{busy ? "Filling…" : `Fill selected (${chosen.length})`}</button>}
           </div>
         </div>

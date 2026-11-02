@@ -6,7 +6,8 @@ def iso(dt):
     return dt.isoformat() if dt else None
 
 
-LATE_NOTE = "late fill, lifecycle not replayed"
+LATE_NOTE = "late fill, lifecycle not replayed"  # record-only fills before #23
+REPLAY_NOTE = "late fill, lifecycle replayed"
 
 
 def is_missed(r: ScanResult) -> bool:

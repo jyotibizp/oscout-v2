@@ -1,7 +1,9 @@
 """Scan gaps (#2): find completed 5m candles that no AUTO/BACKFILL scan covered, and fill the ones the user selects.
 
 Latest block (no scan of any kind after it): full fill, the lifecycle sees the candles in order as if nothing broke.
-Interior block (later scans exist): record-only fill, scan_results written, setups / events / trades untouched.
+Interior block (later scans exist): replay fill (#23), append-only. Existing setups / trades are untouched; a qualified
+candle becomes a new LATE signal walked to its exit over stored candles (or REJECTED if a trade was open then).
+Interior blocks filled record-only before #23 are caught up by replay_filled().
 A scan whose results all evaluated an older candle (stale feed) doesn't cover its candle and doesn't move "latest".
 """
 from dataclasses import dataclass
@@ -11,9 +13,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.clock import UTC, as_utc, is_weekday, latest_completed_start, now_utc, session_close, session_open, to_ist
-from app.db.models import MarketCandle, ScanResult, ScanRun
+from app.api.serializers import LATE_NOTE
+from app.db.models import MarketCandle, ScanResult, ScanRun, SignalEvent, SignalSetup
 from app.market.symbols import TRADABLE
-from app.scanner.service import SCAN_LOCK, ingest_all, run_scan
+from app.scanner.service import SCAN_LOCK, evaluate_symbol, ingest_all, run_scan
+from app.signals.lifecycle import LATE_EVENT, create_late_signal
 from app.strategy import store
 
 STEP = timedelta(minutes=5)
@@ -136,25 +140,78 @@ def fill(db: Session, provider, block_ids: list[str], now: datetime | None = Non
                 results.append({"id": b["id"], "status": "NO_DATA", "message": "Candle data missing for this block"})
                 continue
             full = b["type"] == "LATEST"
-            t, end, scans, signals, missed = datetime.fromisoformat(b["start"]), datetime.fromisoformat(b["end"]), 0, 0, 0
+            t, end, scans, signals, blocked = datetime.fromisoformat(b["start"]), datetime.fromisoformat(b["end"]), 0, 0, 0
             while t <= end:
                 run, created = run_scan(db, provider, trigger="BACKFILL", now=t + STEP + SCAN_DELAY, ingest=False,
                                         lifecycle=full)
                 scans += int(created)
                 syms = (run.summary or {}).get("symbols", {}).values() if created else []
                 signals += sum(1 for v in syms if v.get("final") == "SIGNAL")
-                missed += sum(1 for v in syms if not full and v.get("state") == "QUALIFIED")
+                blocked += sum(1 for v in syms if not full and v.get("state") == "REJECTED" and v.get("late"))
                 t += STEP
-            results.append({"id": b["id"], "status": "FILLED", "mode": "FULL" if full else "RECORD_ONLY",
-                            "scans": scans, "signals": signals, "missed": missed})
+            results.append({"id": b["id"], "status": "FILLED", "mode": "FULL" if full else "REPLAY",
+                            "scans": scans, "signals": signals, "blocked": blocked})
         return results
     finally:
         SCAN_LOCK.release()
 
 
 def late_setup_ids(db: Session) -> set[int]:
-    """Setups whose signal came from a BACKFILL scan (found late)."""
-    from app.db.models import ScanResult
+    """Setups found late: signal from a BACKFILL scan, or created by a replay fill (#23)."""
     q = (select(ScanResult.setup_id).join(ScanRun, ScanRun.id == ScanResult.scan_run_id)
          .where(ScanRun.trigger == "BACKFILL", ScanResult.final_result == "SIGNAL", ScanResult.setup_id.is_not(None)))
-    return set(db.scalars(q))
+    return set(db.scalars(q)) | set(db.scalars(select(SignalEvent.setup_id).where(SignalEvent.event == LATE_EVENT)))
+
+
+def _breakout_key(r: ScanResult):
+    bo = (r.details or {}).get("breakout") or {}
+    return (r.symbol, bo.get("ts"), r.direction) if bo.get("ts") else None
+
+
+def _setup_keys(db: Session) -> dict:
+    return {(s.symbol, _utc(s.breakout_ts).isoformat(), s.direction): s for s in db.scalars(select(SignalSetup))}
+
+
+def unreplayed(db: Session) -> list[ScanResult]:
+    """First record-only (pre-#23) result per qualified breakout that has no setup yet, in candle order."""
+    keys, seen, out = _setup_keys(db), set(), []
+    rows = db.scalars(select(ScanResult).where(ScanResult.state == "QUALIFIED", ScanResult.final_result == "NO_SIGNAL",
+                                               ScanResult.rejection_reason == LATE_NOTE)
+                      .order_by(ScanResult.candle_ts, ScanResult.id)).all()
+    for r in rows:
+        k = _breakout_key(r)
+        if k is None or k in seen:
+            continue
+        seen.add(k)
+        k2 = (k[0], _utc(datetime.fromisoformat(k[1])).isoformat(), k[2])
+        if k2 not in keys:
+            out.append(r)
+    return out
+
+
+def replay_filled(db: Session) -> dict:
+    """Catch-up for blocks filled record-only before #23: re-evaluate each missed breakout as of its candle and replay
+    it (append-only). Old scan rows are left as they are. Idempotent: a replayed breakout has a setup and is skipped."""
+    if not SCAN_LOCK.acquire(blocking=False):
+        raise FillBusy("A scan or fill is running; try again in a moment")
+    try:
+        row, cfg = store.get_active(db)
+        out = {"breakouts": 0, "signals": 0, "blocked": 0, "skipped": 0, "items": []}
+        for r in unreplayed(db):
+            out["breakouts"] += 1
+            t = _utc(r.candle_ts)
+            res, _ = evaluate_symbol(db, r.symbol, cfg, t + STEP + SCAN_DELAY, until=t)
+            k = _breakout_key(r)
+            if res is None or res.state != "QUALIFIED" or not res.breakout or (
+                    _utc(datetime.fromisoformat(res.breakout["ts"])) != _utc(datetime.fromisoformat(k[1]))):
+                out["skipped"] += 1  # doesn't qualify again under the active config: nothing to replay
+                out["items"].append({"scan_result_id": r.id, "symbol": r.symbol, "candle_ts": t.isoformat(), "result": "SKIPPED"})
+                continue
+            setup, state, note = create_late_signal(db, res, cfg, row.id, row.version, now_utc())
+            db.commit()
+            out["signals" if state == "SIGNAL_GENERATED" else "blocked"] += 1
+            out["items"].append({"scan_result_id": r.id, "symbol": r.symbol, "candle_ts": t.isoformat(),
+                                 "result": state, "setup_id": setup.id if setup else None, "note": note})
+        return out
+    finally:
+        SCAN_LOCK.release()

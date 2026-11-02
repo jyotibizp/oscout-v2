@@ -37,3 +37,4 @@ Status: Done (2 Nov 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
 - A scan whose results all evaluated an older candle ("5M DATA STALE": token not refreshed) doesn't cover its candle or count as "latest"; a fill re-scans it once under `BACKFILL:{candle}` (found 2 Nov: most mornings 09:15 → CONNECT were stale).
 - `detected_at` of a late signal = simulated scan time (same as `tools/backfill.py`); "late" comes from the BACKFILL scan.
 - Record-only results where every gate passed show as **MISSED SIGNAL** in Scan History (filter: Missed signals only); fill results count them. Not trades (2 Nov).
+- Interior fills now replay (#23, [23-replay-fill.md](23-replay-fill.md)); MISSED SIGNAL only marks rows from before #23.

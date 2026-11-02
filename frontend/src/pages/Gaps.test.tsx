@@ -24,7 +24,7 @@ test("lists blocks and fills the selected ones after confirmation", async () => 
   render(<Gaps />);
   expect(await screen.findByText("18")).toBeInTheDocument();
   expect(screen.getByText("Latest · full fill")).toBeInTheDocument();
-  expect(screen.getAllByText("Interior · record-only")).toHaveLength(2);
+  expect(screen.getAllByText("Interior · replay")).toHaveLength(2);
   const boxes = screen.getAllByRole("checkbox", { name: /Select/ });
   await vi.waitFor(() => expect(boxes[2]).not.toBeDisabled());
   expect(boxes[1]).toBeDisabled(); // no data
@@ -32,4 +32,14 @@ test("lists blocks and fills the selected ones after confirmation", async () => 
   fireEvent.click(screen.getByRole("button", { name: "Fill selected (1)" }));
   expect(fill).toHaveBeenCalledWith(["2026-11-02T09:30:00+00:00"]);
   expect(await screen.findByText(/6 scans written \(full fill, 1 signal/)).toBeInTheDocument();
+});
+
+test("replays blocks filled before replay existed", async () => {
+  vi.mocked(api.gaps).mockResolvedValue({ from: "2026-10-27", to: "2026-11-02", total_missing: 0, no_data_days: [], days: [], blocks: [], replay_pending: 31 });
+  const rep = vi.spyOn(api, "replayFilled").mockResolvedValue({ breakouts: 31, signals: 25, blocked: 5, skipped: 1 });
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  render(<Gaps />);
+  fireEvent.click(await screen.findByRole("button", { name: "Replay filled blocks (31)" }));
+  expect(rep).toHaveBeenCalled();
+  expect(await screen.findByText(/25 LATE trade\(s\), 5 rejected/)).toBeInTheDocument();
 });

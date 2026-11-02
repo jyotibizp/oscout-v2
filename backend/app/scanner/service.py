@@ -17,7 +17,7 @@ from app.market import health
 from app.market.ingestion import latest_ts, sync_symbol
 from app.market.repository import load_bars, vix_snapshot, wilder_state
 from app.market.symbols import TRADABLE, VIX
-from app.signals.lifecycle import OPEN, apply_result, update_open_signals
+from app.signals.lifecycle import OPEN, apply_result, create_late_signal, live_open, update_open_signals
 from app.strategy import store
 from app.strategy import commentary
 from app.strategy.config import StrategyConfig
@@ -33,7 +33,7 @@ class ScanBusy(Exception):
 # One scan at a time. Re-entrant: a gap fill holds it across its own scans, so an AUTO scan waits until the fill is done
 # and the lifecycle still sees candles in time order.
 SCAN_LOCK = threading.RLock()
-from app.api.serializers import LATE_NOTE  # noqa: E402  (one definition of the record-only note)
+from app.api.serializers import REPLAY_NOTE  # noqa: E402  (one definition of the gap-fill note)
 
 
 def stale_run(db: Session, run: ScanRun) -> bool:
@@ -104,7 +104,8 @@ def evaluate_symbol(db: Session, symbol: str, cfg: StrategyConfig, now: datetime
 def run_scan(db: Session, provider, trigger: str = "MANUAL", now: datetime | None = None,
              ingest: bool = True, lifecycle: bool = True) -> tuple[ScanRun, bool]:
     """Returns (scan_run, created). AUTO and BACKFILL scans share one dedupe key per completed 5m candle.
-    lifecycle=False (interior gap fill): record scan results only; setups, events and trades are left alone."""
+    lifecycle=False (interior gap fill, #23 replay): existing setups / trades are left alone; a QUALIFIED result becomes
+    a new late signal walked to its exit over stored candles (append-only)."""
     with SCAN_LOCK:
         return _run_scan(db, provider, trigger, now, ingest, lifecycle)
 
@@ -139,7 +140,9 @@ def _run_scan(db: Session, provider, trigger: str, now: datetime | None, ingest:
                 raise RuntimeError(f"No {sym} 5m data")
             stale = res.state == "REJECTED" and res.gate1.status == "FAIL" and "DATA" in res.reason
             if not lifecycle:
-                exited, (setup, state, note) = [], (None, res.state, LATE_NOTE)
+                exited = []
+                setup, state, note = (create_late_signal(db, res, cfg, cfg_row.id, cfg_row.version, now)
+                                      if res.state == "QUALIFIED" else (None, res.state, REPLAY_NOTE))
             else:
                 exited = [] if stale else update_open_signals(db, sym, bars5, cfg)
                 setup, state, note = (None, res.state, None) if stale else apply_result(
@@ -149,7 +152,7 @@ def _run_scan(db: Session, provider, trigger: str, now: datetime | None, ingest:
             elif exited and state not in ("SIGNAL_GENERATED",):
                 state, note = "EXIT_TRIGGERED", f"{exited[-1].direction} exit: {exited[-1].exit_reason}"
             elif state in ("WATCHING", "COMPRESSION", "EXPIRED"):
-                act = db.scalar(select(SignalSetup).where(SignalSetup.symbol == sym, SignalSetup.state.in_(OPEN)))
+                act = live_open(db, sym)
                 if act is not None:
                     state, setup = "ACTIVE", act
             final = "SIGNAL" if state == "SIGNAL_GENERATED" else "NO_SIGNAL"
@@ -167,7 +170,8 @@ def _run_scan(db: Session, provider, trigger: str, now: datetime | None, ingest:
                               rejection_reason=(reason or "")[:200] or None, details=_jsonable(details),
                               config_version=cfg_row.version, setup_id=setup.id if setup else None))
             db.commit()
-            summary["symbols"][sym] = {"state": state, "final": final, "direction": res.direction, "reason": reason}
+            summary["symbols"][sym] = {"state": state, "final": final, "direction": res.direction, "reason": reason,
+                                       **({"late": True} if not lifecycle and setup is not None else {})}
             log.info("scan result", extra={"ctx": {"scan_id": run.id, "symbol": sym, "state": state, "final": final,
                                                    "gate1": res.gate1.status, "gate2": res.gate2.status,
                                                    "atr": res.atr.status, "vix": res.vix.status, "reason": reason}})
