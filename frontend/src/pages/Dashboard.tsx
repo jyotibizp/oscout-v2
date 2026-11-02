@@ -4,7 +4,7 @@ import { CandleChart, ChartOverlay } from "../components/CandleChart";
 import { Sparkline } from "../components/Charts";
 import { ChainPanel } from "../components/OptionChain";
 import { ScanDetailDrawer, SignalDetailDrawer } from "../components/Details";
-import { Badge, Dir, ErrorNote, PageHeader } from "../components/ui";
+import { Badge, Dir, ErrorNote } from "../components/ui";
 import { n, signed, timeIST } from "../lib/format";
 import { useApi } from "../lib/hooks";
 import { useSymbols } from "../lib/symbols";
@@ -210,12 +210,54 @@ function SymbolCard({ sym, testing, r, signal, lastExit, setups, onSignal, onDet
   );
 }
 
-/** One full-width commentary widget for both indexes, side by side. */
+/** Columns for 1, 2 or 3 selected indexes (cards and commentary use the same). */
+const COLS = ["", "xl:grid-cols-2", "xl:grid-cols-2 2xl:grid-cols-3"];
+const cols = (count: number) => COLS[Math.min(count, 3) - 1] ?? COLS[2];
+const PICK_KEY = "oscout.dashboardSymbols";
+
+/** Indexes shown on the dashboard, remembered in this browser; at least one stays selected. Unknown/blocked storage → all. */
+function useSelected(all: string[]): [string[], (sym: string) => void] {
+  const [picked, setPicked] = useState<string[] | null>(() => {
+    try { const v = JSON.parse(localStorage.getItem(PICK_KEY) ?? "null"); return Array.isArray(v) && v.length ? v : null; } catch { return null; }
+  });
+  const shown = all.filter((s) => !picked || picked.includes(s));
+  const selected = shown.length ? shown : all;
+  const toggle = (sym: string) => {
+    const next = selected.includes(sym) ? selected.filter((s) => s !== sym) : all.filter((s) => s === sym || selected.includes(s));
+    if (!next.length) return;
+    setPicked(next);
+    try { localStorage.setItem(PICK_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+  };
+  return [selected, toggle];
+}
+
+/** Index chips (replace the old "Is there a trade right now?" header); a dot marks an index with an active signal. */
+function SymbolChips({ symbols, selected, active, onToggle }: { symbols: { symbol: string; testing: boolean }[]; selected: string[]; active: Setup[]; onToggle: (s: string) => void }) {
+  return (
+    <div role="group" aria-label="Indexes shown" className="mb-5 flex flex-wrap gap-2">
+      {symbols.map(({ symbol: s, testing }) => {
+        const on = selected.includes(s);
+        const sig = active.find((a) => a.symbol === s);
+        return (
+          <button key={s} aria-pressed={on} onClick={() => onToggle(s)}
+            title={sig ? `${sig.direction === "CALL" ? "CE" : "PE"} signal active since ${timeIST(sig.signal_ts)} IST` : testing ? "On trial (Testing)" : undefined}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold tracking-wide ${on ? "border-accent-strong bg-accent-strong text-white" : "border-line text-ink-soft hover:bg-raise"}`}>
+            {sig && <span aria-label="active signal" className={`h-2 w-2 rounded-full ${sig.direction === "CALL" ? "bg-good" : "bg-bad"}`} />}
+            {s}
+            {testing && <span className="text-[10px] font-medium opacity-70">TEST</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** One full-width commentary widget for the selected indexes, side by side. */
 function CommentaryPanel({ syms, active, order }: { syms: Record<string, ScanResult | null | undefined>; active: Setup[]; order: string[] }) {
   return (
     <section className="card p-5">
       <h2 className="text-xs uppercase tracking-widest text-ink-faint mb-4">Commentary</h2>
-      <div className="grid gap-6 xl:gap-8 xl:grid-cols-2 2xl:grid-cols-3">
+      <div className={`grid gap-6 xl:gap-8 ${cols(order.length)}`}>
         {order.map((sym, i) => {
           const r = syms[sym];
           const c = r?.details?.commentary;
@@ -274,18 +316,15 @@ export default function Dashboard() {
   const [openScan, setOpenScan] = useState<number | null>(null);
   const syms = latest.data?.symbols ?? {};
   const active = sig.data?.active ?? [];
-  const run = latest.data?.run;
   const symbols = useSymbols();
-  const summary = active.length
-    ? `${active.length} active signal${active.length > 1 ? "s" : ""}: ${active.map((s) => `${s.symbol} ${s.direction}`).join(", ")}`
-    : sig.data?.pending.length ? `${sig.data.pending.length} setup(s) waiting for 15m confirmation` : "No active signal";
+  const [selected, toggle] = useSelected(symbols.map((x) => x.symbol));
+  const shown = symbols.filter((x) => selected.includes(x.symbol));
   return (
     <div className="max-w-[1920px]">
-      <PageHeader title="Is there a trade right now?"
-        sub={run ? `${summary} · last scan #${run.id} (${run.trigger}) at ${timeIST(run.started_at)} IST` : "No scans yet"} />
+      <SymbolChips symbols={symbols} selected={selected} active={active} onToggle={toggle} />
       <ErrorNote error={latest.error} />
-      <div className="grid gap-x-5 gap-y-5 xl:gap-y-0 xl:grid-cols-2 2xl:grid-cols-3">
-        {symbols.map(({ symbol: s, testing }, i) => (
+      <div className={`grid gap-x-5 gap-y-5 xl:gap-y-0 ${cols(shown.length)}`}>
+        {shown.map(({ symbol: s, testing }, i) => (
           <SymbolCard key={s} sym={s} testing={testing} className={i >= 2 ? "xl:mt-5 2xl:mt-0" : ""}
             r={syms[s] ?? null} signal={active.find((a) => a.symbol === s)}
             lastExit={sig.data?.exited_today.find((x) => x.symbol === s)}
@@ -293,7 +332,7 @@ export default function Dashboard() {
             onSignal={setOpenSignal} onDetails={setOpenScan} />
         ))}
       </div>
-      <div className="mt-5"><CommentaryPanel syms={syms} active={active} order={symbols.map((x) => x.symbol)} /></div>
+      <div className="mt-5"><CommentaryPanel syms={syms} active={active} order={shown.map((x) => x.symbol)} /></div>
       <SignalDetailDrawer id={openSignal} onClose={() => setOpenSignal(null)} />
       <ScanDetailDrawer id={openScan} onClose={() => setOpenScan(null)} />
     </div>

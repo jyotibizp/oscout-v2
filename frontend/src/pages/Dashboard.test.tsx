@@ -63,3 +63,17 @@ test("BANKNIFTY gets a third card tagged TESTING", async () => {
   expect(await screen.findByText("TESTING")).toBeInTheDocument();
   expect(await screen.findAllByRole("tab", { name: "Chain" })).toHaveLength(3);
 });
+
+test("index chips replace the header and show only the selected cards and commentary", async () => {
+  render(<Dashboard />);
+  expect(screen.queryByText("Is there a trade right now?")).toBeNull();
+  expect(await screen.findAllByRole("tab", { name: "Chain" })).toHaveLength(3);
+  fireEvent.click(screen.getByRole("button", { name: /^SENSEX/ }));
+  expect(await screen.findAllByRole("tab", { name: "Chain" })).toHaveLength(2);
+  expect(screen.queryByRole("heading", { name: "SENSEX" })).toBeNull();
+  expect(JSON.parse(localStorage.getItem("oscout.dashboardSymbols")!)).toEqual(["NIFTY", "BANKNIFTY"]);
+  fireEvent.click(screen.getByRole("button", { name: /^NIFTY/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^BANKNIFTY/ }));  // last one stays: never an empty dashboard
+  expect(screen.getAllByRole("tab", { name: "Chain" })).toHaveLength(1);
+  expect(screen.getByRole("button", { name: /^BANKNIFTY/ })).toHaveAttribute("aria-pressed", "true");
+});
