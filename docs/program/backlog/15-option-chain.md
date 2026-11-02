@@ -30,5 +30,6 @@ Status: Built, needs Kite spot check (2 Nov 2026) · Index: [BACKLOG.md](../../.
 
 **Built:** `GET /api/options/chain?symbol=&strikes=10` (`api/routes.py`), `options/greeks.py` (BS, IV; r = 6.5%), `options/chain.py`, `option_chain()` in Kite + Mock providers, UI `components/OptionChain.tsx`.
 - Kite path not yet run on live data: first chain of the day fetches previous-day OI in the background (~15s), so OI chg% shows "—" until then.
-- IV per strike from the OTM side, used for both sides: deep ITM premiums often sit below the BS floor and have no IV of their own (fixed 2 Nov after first live look).
+- IV/Greeks priced off the put-call parity forward, not spot (options imply ~96 pts under NIFTY spot, ~250 under SENSEX, 2 Nov).
+- IV per strike from the OTM side (vs the forward), used for both sides: deep ITM premiums often sit below the BS floor and have no IV of their own (fixed 2 Nov after first live look).
 - To do on the Mac: spot-check LTP / OI vs Kite's chain (OI unit: Kite quote `oi` shown ÷ 1e5 as lakhs).

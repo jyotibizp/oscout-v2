@@ -1,3 +1,4 @@
+import math
 from datetime import date, datetime
 
 from app.core.clock import IST
@@ -63,4 +64,17 @@ def test_deep_itm_call_below_bs_floor_still_gets_greeks():
                      "pe": {"ltp": put, "prev_close": put, "oi": 1e5, "oi_prev": 1e5}}]}
     assert bs.implied_vol(598.0, 25600, 25000, t, True) is None  # below the floor on its own
     row = chain.build(raw, now=datetime(2026, 11, 2, 15, 0, tzinfo=IST))["rows"][0]
-    assert abs(row["ce"]["iv"] - 16) < 0.1 and row["ce"]["delta"] > 0.9 and row["pe"]["iv"] == row["ce"]["iv"]
+    assert abs(row["ce"]["iv"] - 16) < 0.5 and row["ce"]["delta"] > 0.9 and row["pe"]["iv"] == row["ce"]["iv"]
+
+
+def test_itm_calls_get_greeks_when_options_imply_an_underlying_below_spot():
+    # 2 Nov 2026 close: NIFTY spot 23440.8 but the chain priced off ~23345, so ITM calls traded below spot intrinsic
+    now, expiry, under = datetime(2026, 11, 2, 15, 30, tzinfo=IST), date(2026, 11, 3), 23345.0
+    t = chain.years_to_expiry(expiry, now)
+    q = lambda k, call: {"ltp": round(bs.price(under, k, t, 0.12, call), 2), "prev_close": None, "oi": 1, "oi_prev": None}
+    rows = [{"strike": k, "ce": q(k, True), "pe": q(k, False)} for k in range(22950, 24000, 50)]
+    out = chain.build({"symbol": "NIFTY", "expiry": expiry, "spot": 23440.8, "rows": rows}, now=now)
+    assert abs(out["forward"] - under * math.exp(bs.RISK_FREE * t)) < 1
+    atmish = [r for r in out["rows"] if abs(r["strike"] - under) <= 300]
+    assert all(abs(r[s]["iv"] - 12) < 0.5 and r[s]["delta"] is not None for r in atmish for s in ("ce", "pe"))
+    assert all(r["ce"]["delta"] is not None for r in out["rows"] if r["strike"] < under)
