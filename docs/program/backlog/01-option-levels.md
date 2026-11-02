@@ -17,7 +17,7 @@ Status: Groomed (2 Nov 2026), next to build · Index: [BACKLOG.md](../../../BACK
 1. Expiry: current weekly; switch to next weekly on expiry day (or < 1 day left)?
 2. Stop / target premium: (a) re-price with Black-Scholes at the index stop / target (same IV, time left), (b) entry ± delta × index points, (c) keep index levels and just record the real premium when the index hits them. My pick: (a) for levels shown, (c) for the recorded exit.
 3. Exit trigger stays on the index (stop / target / ADX exit), or should premium levels trigger exits?
-4. Option costs per trade (brokerage + slippage, per lot)?
+4. Option costs: one brokerage + slippage figure for the whole traded position (not per lot), per trade (pradeep 2 Nov). Amount: ?
 5. Past signals: options history for expired contracts isn't on Kite, so modelled with IV from VIX. OK?
 
 **Acceptance**
