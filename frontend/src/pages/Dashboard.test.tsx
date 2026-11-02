@@ -58,22 +58,21 @@ test("Chain tab shows the chain with ATM and signal strike, and toggles to Greek
   expect(screen.getAllByText("Delta").length).toBe(2);
 });
 
-test("BANKNIFTY gets a third card tagged TESTING", async () => {
+test("BANKNIFTY card is tagged TESTING", async () => {
   render(<Dashboard />);
+  fireEvent.click(await screen.findByRole("radio", { name: /^BANKNIFTY/ }));
   expect(await screen.findByText("TESTING")).toBeInTheDocument();
-  expect(await screen.findAllByRole("tab", { name: "Chain" })).toHaveLength(3);
 });
 
-test("index chips replace the header and show only the selected cards and commentary", async () => {
+test("index chips replace the header: NIFTY by default, one index at a time", async () => {
   render(<Dashboard />);
   expect(screen.queryByText("Is there a trade right now?")).toBeNull();
-  expect(await screen.findAllByRole("tab", { name: "Chain" })).toHaveLength(3);
-  fireEvent.click(screen.getByRole("button", { name: /^SENSEX/ }));
-  expect(await screen.findAllByRole("tab", { name: "Chain" })).toHaveLength(2);
-  expect(screen.queryByRole("heading", { name: "SENSEX" })).toBeNull();
-  expect(JSON.parse(localStorage.getItem("oscout.dashboardSymbols")!)).toEqual(["NIFTY", "BANKNIFTY"]);
-  fireEvent.click(screen.getByRole("button", { name: /^NIFTY/ }));
-  fireEvent.click(screen.getByRole("button", { name: /^BANKNIFTY/ }));  // last one stays: never an empty dashboard
+  expect(await screen.findByRole("radio", { name: /^NIFTY/ })).toHaveAttribute("aria-checked", "true");
+  expect(await screen.findAllByRole("tab", { name: "Chain" })).toHaveLength(1);
+  fireEvent.click(screen.getByRole("radio", { name: /^SENSEX/ }));
+  expect(screen.getByRole("radio", { name: /^NIFTY/ })).toHaveAttribute("aria-checked", "false");
+  expect(screen.getByRole("heading", { name: "SENSEX" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "NIFTY" })).toBeNull();
   expect(screen.getAllByRole("tab", { name: "Chain" })).toHaveLength(1);
-  expect(screen.getByRole("button", { name: /^BANKNIFTY/ })).toHaveAttribute("aria-pressed", "true");
+  expect(localStorage.getItem("oscout.dashboardSymbol")).toBe("SENSEX");
 });
