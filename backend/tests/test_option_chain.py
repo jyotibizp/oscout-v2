@@ -53,3 +53,14 @@ def test_banknifty_is_testing_and_has_a_monthly_chain(db):
     assert {"symbol": "BANKNIFTY", "testing": True} in c.get("/api/market/symbols").json()
     body = c.get("/api/options/chain?symbol=BANKNIFTY").json()
     assert body["rows"][1]["strike"] - body["rows"][0]["strike"] == 100
+
+
+def test_deep_itm_call_below_bs_floor_still_gets_greeks():
+    t = chain.years_to_expiry(date(2026, 11, 3), datetime(2026, 11, 2, 15, 0, tzinfo=IST))
+    put = round(bs.price(25600, 25000, t, 0.16, False), 2)
+    raw = {"symbol": "NIFTY", "expiry": date(2026, 11, 3), "spot": 25600.0,
+           "rows": [{"strike": 25000.0, "ce": {"ltp": 598.0, "prev_close": 600.0, "oi": 1e5, "oi_prev": 1e5},
+                     "pe": {"ltp": put, "prev_close": put, "oi": 1e5, "oi_prev": 1e5}}]}
+    assert bs.implied_vol(598.0, 25600, 25000, t, True) is None  # below the floor on its own
+    row = chain.build(raw, now=datetime(2026, 11, 2, 15, 0, tzinfo=IST))["rows"][0]
+    assert abs(row["ce"]["iv"] - 16) < 0.1 and row["ce"]["delta"] > 0.9 and row["pe"]["iv"] == row["ce"]["iv"]
