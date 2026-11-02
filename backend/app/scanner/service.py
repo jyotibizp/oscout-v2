@@ -33,7 +33,7 @@ class ScanBusy(Exception):
 # One scan at a time. Re-entrant: a gap fill holds it across its own scans, so an AUTO scan waits until the fill is done
 # and the lifecycle still sees candles in time order.
 SCAN_LOCK = threading.RLock()
-LATE_NOTE = "late fill, lifecycle not replayed"
+from app.api.serializers import LATE_NOTE  # noqa: E402  (one definition of the record-only note)
 
 
 def stale_run(db: Session, run: ScanRun) -> bool:

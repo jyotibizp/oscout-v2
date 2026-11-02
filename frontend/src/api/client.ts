@@ -36,7 +36,7 @@ export interface ScanResult {
   atr: number | null; atr_status: string | null; vix: number | null; vix_change_pct: number | null;
   gate1: GateStatus; gate2: GateStatus; atr_filter: GateStatus; vix_filter: GateStatus;
   final_result: "SIGNAL" | "NO_SIGNAL"; state: string; direction: "CALL" | "PUT" | null; rejection_reason: string | null;
-  config_version: string; setup_id: number | null; reason?: string; entry_price?: number | null;
+  config_version: string; setup_id: number | null; missed?: boolean; reason?: string; entry_price?: number | null;
   gates?: Record<string, { status: GateStatus; reasons: string[] }>;
   commentary?: Commentary | null;
   details?: {
@@ -54,7 +54,7 @@ export interface OptionChain {
 }
 export interface GapBlock { id: string; date: string; start: string; end: string; candles: number; type: "LATEST" | "INTERIOR"; data: "FULL" | "PARTIAL" | "NONE"; selectable: boolean }
 export interface Gaps { from: string; to: string; total_missing: number; days: { date: string; expected: number; missing: number }[]; no_data_days: string[]; blocks: GapBlock[] }
-export interface GapFillResult { id: string; status: "FILLED" | "SKIPPED" | "NO_DATA"; mode?: "FULL" | "RECORD_ONLY"; scans?: number; signals?: number; message?: string }
+export interface GapFillResult { id: string; status: "FILLED" | "SKIPPED" | "NO_DATA"; mode?: "FULL" | "RECORD_ONLY"; scans?: number; signals?: number; missed?: number; message?: string }
 export interface ScanRun { id: number; trigger: string; candle_ts: string | null; started_at: string; finished_at: string | null; status: string; config_version: string; summary: any }
 export interface Trade {
   id: number; setup_id: number; symbol: string; direction: string; status: string; entry_ts: string; entry_price: number;

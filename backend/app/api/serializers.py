@@ -6,13 +6,22 @@ def iso(dt):
     return dt.isoformat() if dt else None
 
 
+LATE_NOTE = "late fill, lifecycle not replayed"
+
+
+def is_missed(r: ScanResult) -> bool:
+    """A record-only gap fill where every gate passed: live would have signalled (subject to one open trade per index)."""
+    return r.state == "QUALIFIED" and r.final_result == "NO_SIGNAL" and r.rejection_reason == LATE_NOTE
+
+
 def scan_result(r: ScanResult, full: bool = False) -> dict:
     d = {"id": r.id, "scan_run_id": r.scan_run_id, "symbol": r.symbol, "candle_ts": iso(r.candle_ts),
          "created_at": iso(r.created_at), "adx5": r.adx5, "pdi5": r.pdi5, "mdi5": r.mdi5, "adx15": r.adx15,
          "pdi15": r.pdi15, "mdi15": r.mdi15, "atr": r.atr, "atr_status": r.atr_status, "vix": r.vix,
          "vix_change_pct": r.vix_change_pct, "gate1": r.gate1, "gate2": r.gate2, "atr_filter": r.atr_filter,
          "vix_filter": r.vix_filter, "final_result": r.final_result, "state": r.state, "direction": r.direction,
-         "rejection_reason": r.rejection_reason, "config_version": r.config_version, "setup_id": r.setup_id}
+         "rejection_reason": r.rejection_reason, "config_version": r.config_version, "setup_id": r.setup_id,
+         "missed": is_missed(r)}
     if full:
         d["details"] = r.details
     else:

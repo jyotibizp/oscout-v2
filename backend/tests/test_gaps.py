@@ -61,7 +61,7 @@ def test_interior_fill_is_record_only_and_dedupes(db):
     before = [db.scalar(select(func.count()).select_from(m)) for m in (SignalSetup, SignalEvent, Trade)]
     bid = gaps.find(db, DAY, DAY, NOW)["blocks"][0]["id"]
     res = gaps.fill(db, p, [bid], NOW)
-    assert res == [{"id": bid, "status": "FILLED", "mode": "RECORD_ONLY", "scans": 6, "signals": 0}]
+    assert res == [{"id": bid, "status": "FILLED", "mode": "RECORD_ONLY", "scans": 6, "signals": 0, "missed": res[0]["missed"]}]
     runs = db.scalars(select(ScanRun).where(ScanRun.trigger == "BACKFILL").order_by(ScanRun.candle_ts)).all()
     assert len(runs) == 6 and [r.candle_ts.replace(tzinfo=None) for r in runs] == [x.replace(tzinfo=None) for x in c[9:15]]
     results = db.scalars(select(ScanResult).where(ScanResult.scan_run_id.in_([r.id for r in runs]))).all()
@@ -180,3 +180,24 @@ def test_scans_on_a_stale_feed_are_gaps_and_a_fill_rescans_them_once(db):
     assert gaps.fill(db, p, [blocks[0]["id"]], now)[0]["status"] == "SKIPPED"
     keys = db.scalars(select(ScanRun.dedupe_key).where(ScanRun.trigger == "BACKFILL")).all()
     assert sorted(keys) == sorted(f"BACKFILL:{t.isoformat()}" for t in c[6:9])
+
+
+def test_record_only_fill_flags_missed_signals(tmp_path):
+    """Interior fill over the afternoon that holds a real signal: it is not created, but shows as missed."""
+    p = MockProvider()
+    set_provider(p)
+    c = _candles()
+    b = _fresh(tmp_path / "m.db")
+    _ingest(b, p)
+    for t in c[:45]:
+        run_scan(b, p, "AUTO", t + STEP + timedelta(seconds=20), ingest=False)
+    run_scan(b, p, "AUTO", c[74] + STEP + timedelta(seconds=20), ingest=False)  # a later scan: block is Interior
+    blk = gaps.find(b, DAY, DAY, NOW)["blocks"]
+    assert [x["type"] for x in blk] == ["INTERIOR"]
+    before = b.scalar(select(func.count()).select_from(SignalSetup))
+    res = gaps.fill(b, p, [blk[0]["id"]], NOW)[0]
+    assert res["signals"] == 0 and res["missed"] > 0
+    assert b.scalar(select(func.count()).select_from(SignalSetup)) == before
+    items = client_at("127.0.0.1").get("/api/scans/history", params={"missed": "true"}).json()["items"]
+    assert len(items) == res["missed"] and all(i["missed"] and i["state"] == "QUALIFIED" for i in items)
+    b.close()

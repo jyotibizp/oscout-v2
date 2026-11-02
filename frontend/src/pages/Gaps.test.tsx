@@ -31,5 +31,5 @@ test("lists blocks and fills the selected ones after confirmation", async () => 
   fireEvent.click(boxes[2]);
   fireEvent.click(screen.getByRole("button", { name: "Fill selected (1)" }));
   expect(fill).toHaveBeenCalledWith(["2026-11-02T09:30:00+00:00"]);
-  expect(await screen.findByText(/6 scans written \(full fill\), 1 signal/)).toBeInTheDocument();
+  expect(await screen.findByText(/6 scans written \(full fill, 1 signal/)).toBeInTheDocument();
 });

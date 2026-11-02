@@ -28,6 +28,8 @@ export default function ScanHistory() {
         <Field label="State"><select className="input" onChange={set("state")}><option value="">All</option>
           {["WATCHING", "COMPRESSION", "BREAKOUT_DETECTED", "WAITING_CONFIRMATION", "QUALIFIED", "SIGNAL_GENERATED", "ACTIVE", "EXIT_TRIGGERED", "EXPIRED", "REJECTED"].map((s) => <option key={s}>{s}</option>)}</select></Field>
         <Field label="Gate failure"><select className="input" onChange={set("gate_failed")}><option value="">Any</option><option value="gate1">Gate 1</option><option value="gate2">Gate 2</option><option value="atr_filter">ATR</option><option value="vix_filter">VIX</option></select></Field>
+        <label className="flex items-center gap-2 text-sm text-ink-soft pb-1" title="Gap fills (record-only) where every gate passed: live would have signalled">
+          <input type="checkbox" checked={f.missed === "true"} onChange={(e) => { setPage(0); setF({ ...f, missed: e.target.checked ? "true" : "" }); }} />Missed signals only</label>
         <span className="text-xs text-ink-faint ml-auto">{loading ? "Loading…" : `${total} results`}</span>
       </div>
       <ErrorNote error={error} />
@@ -47,7 +49,7 @@ export default function ScanHistory() {
                 <td className="td num">{n(r.vix, 2)}</td>
                 <td className="td"><Badge s={r.gate1} /></td><td className="td"><Badge s={r.gate2} /></td>
                 <td className="td"><Badge s={r.atr_filter} /></td><td className="td"><Badge s={r.vix_filter} /></td>
-                <td className="td"><Badge s={r.final_result === "SIGNAL" ? "SIGNAL" : r.state} /></td>
+                <td className="td">{r.missed ? <Badge s="LATE" label="MISSED SIGNAL" /> : <Badge s={r.final_result === "SIGNAL" ? "SIGNAL" : r.state} />}</td>
                 <td className="td"><Dir d={r.direction} /></td>
                 <td className="td text-xs text-ink-soft max-w-[320px] truncate" title={r.rejection_reason ?? r.reason ?? ""}>{r.rejection_reason ?? r.reason}</td>
                 <td className="td num text-ink-faint text-xs">v{r.config_version}</td>

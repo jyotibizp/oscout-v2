@@ -136,15 +136,17 @@ def fill(db: Session, provider, block_ids: list[str], now: datetime | None = Non
                 results.append({"id": b["id"], "status": "NO_DATA", "message": "Candle data missing for this block"})
                 continue
             full = b["type"] == "LATEST"
-            t, end, scans, signals = datetime.fromisoformat(b["start"]), datetime.fromisoformat(b["end"]), 0, 0
+            t, end, scans, signals, missed = datetime.fromisoformat(b["start"]), datetime.fromisoformat(b["end"]), 0, 0, 0
             while t <= end:
                 run, created = run_scan(db, provider, trigger="BACKFILL", now=t + STEP + SCAN_DELAY, ingest=False,
                                         lifecycle=full)
                 scans += int(created)
-                signals += sum(1 for v in (run.summary or {}).get("symbols", {}).values() if v.get("final") == "SIGNAL")
+                syms = (run.summary or {}).get("symbols", {}).values() if created else []
+                signals += sum(1 for v in syms if v.get("final") == "SIGNAL")
+                missed += sum(1 for v in syms if not full and v.get("state") == "QUALIFIED")
                 t += STEP
             results.append({"id": b["id"], "status": "FILLED", "mode": "FULL" if full else "RECORD_ONLY",
-                            "scans": scans, "signals": signals})
+                            "scans": scans, "signals": signals, "missed": missed})
         return results
     finally:
         SCAN_LOCK.release()

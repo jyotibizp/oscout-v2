@@ -59,7 +59,7 @@ export default function Gaps() {
         <div className="card p-4 mb-5 text-sm space-y-1" aria-label="Fill results">
           {results.map((r) => (
             <p key={r.id}><Badge s={r.status === "FILLED" ? "PASS" : "WAIT"} label={r.status.replace("_", " ")} />{" "}
-              {dateIST(r.id)} {timeIST(r.id)}: {r.status === "FILLED" ? `${r.scans} scans written (${r.mode === "FULL" ? "full fill" : "record-only"}), ${r.signals} signal(s)` : r.message}</p>
+              {dateIST(r.id)} {timeIST(r.id)}: {r.status === "FILLED" ? `${r.scans} scans written (${r.mode === "FULL" ? `full fill, ${r.signals} signal(s)` : `record-only, ${r.missed ?? 0} missed-signal candle(s)`})` : r.message}</p>
           ))}
         </div>
       )}

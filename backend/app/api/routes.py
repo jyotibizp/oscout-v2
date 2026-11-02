@@ -122,9 +122,12 @@ def scans_gaps_fill(body: GapFill, db: Session = Depends(get_db)):
 @router.get("/scans/history")
 def scans_history(symbol: str | None = None, final: str | None = None, state: str | None = None,
                   direction: str | None = None, gate_failed: str | None = None, date_from: date | None = None,
-                  date_to: date | None = None, limit: int = Query(100, le=1000), offset: int = 0,
+                  date_to: date | None = None, missed: bool = False, limit: int = Query(100, le=1000), offset: int = 0,
                   db: Session = Depends(get_db)):
     q = select(ScanResult)
+    if missed:  # record-only gap fills that qualified (would have signalled)
+        q = q.where(ScanResult.state == "QUALIFIED", ScanResult.final_result == "NO_SIGNAL",
+                    ScanResult.rejection_reason == ser.LATE_NOTE)
     if symbol:
         q = q.where(ScanResult.symbol == symbol.upper())
     if final:
