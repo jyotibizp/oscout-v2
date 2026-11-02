@@ -139,3 +139,19 @@ def test_index_without_candles_that_day_does_not_blank_the_data_check(db):
     c = _candles()
     _cover(db, set(c[9:12]))
     assert [b["data"] for b in gaps.find(db, DAY, DAY, NOW)["blocks"]] == ["FULL"]
+
+
+def test_history_and_latest_follow_candle_order_after_a_fill(db):
+    p = MockProvider()
+    set_provider(p)
+    _ingest(db, p)
+    c = _candles()
+    for t in c[:6] + c[8:10]:
+        run_scan(db, p, "AUTO", t + STEP + timedelta(seconds=20), ingest=False)
+    bid = gaps.find(db, DAY, DAY, ist(2026, 10, 7, 10, 6))["blocks"][0]["id"]
+    gaps.fill(db, p, [bid], ist(2026, 10, 7, 10, 6))  # 09:45-09:50 written last
+    cl = client_at("127.0.0.1")
+    items = cl.get("/api/scans/history", params={"symbol": "NIFTY"}).json()["items"]
+    ts = [i["candle_ts"] for i in items]
+    assert ts == sorted(ts, reverse=True) and len(ts) == 10
+    assert cl.get("/api/scans/latest").json()["symbols"]["NIFTY"]["candle_ts"] == ts[0]

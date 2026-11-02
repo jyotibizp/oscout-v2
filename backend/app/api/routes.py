@@ -85,9 +85,10 @@ def scan_now(db: Session = Depends(get_db)):
 def scans_latest(db: Session = Depends(get_db)):
     out = {}
     for sym in TRADABLE:
-        r = db.scalar(select(ScanResult).where(ScanResult.symbol == sym).order_by(ScanResult.id.desc()).limit(1))
+        r = db.scalar(select(ScanResult).where(ScanResult.symbol == sym)
+                      .order_by(ScanResult.candle_ts.desc(), ScanResult.id.desc()).limit(1))
         out[sym] = ser.scan_result(r, full=True) if r else None
-    run = db.scalar(select(ScanRun).order_by(ScanRun.id.desc()).limit(1))
+    run = db.scalar(select(ScanRun).order_by(ScanRun.candle_ts.desc(), ScanRun.id.desc()).limit(1))
     return {"run": ser.scan_run(run) if run else None, "symbols": out}
 
 
@@ -140,7 +141,8 @@ def scans_history(symbol: str | None = None, final: str | None = None, state: st
     if hi:
         q = q.where(ScanResult.candle_ts <= hi)
     total = db.scalar(select(func.count()).select_from(q.subquery()))
-    rows = db.scalars(q.order_by(ScanResult.id.desc()).offset(offset).limit(limit)).all()
+    # candle order, not insert order: gap fills write old candles late (#2)
+    rows = db.scalars(q.order_by(ScanResult.candle_ts.desc(), ScanResult.id.desc()).offset(offset).limit(limit)).all()
     return {"total": total, "items": [ser.scan_result(r) for r in rows]}
 
 
@@ -319,7 +321,7 @@ def system_health(db: Session = Depends(get_db)):
     _, cfg = store.get_active(db)
     p = get_provider()
     feeds = health.all_feeds(db, now, cfg.scanner.max_data_age_minutes)
-    last = db.scalar(select(ScanRun).order_by(ScanRun.id.desc()).limit(1))
+    last = db.scalar(select(ScanRun).order_by(ScanRun.candle_ts.desc(), ScanRun.id.desc()).limit(1))
     return {"now": now.isoformat(), "market_open": is_market_open(now), "provider": p.name,
             "connected": p.is_connected(), "session_date": str(getattr(p, "_token_day", "") or "") or None, "feeds": feeds, "auto_scan": auto_scanner.status(),
             "last_scan": ser.scan_run(last) if last else None}
