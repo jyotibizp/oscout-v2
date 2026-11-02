@@ -10,7 +10,15 @@ AGENTS="$HOME/Library/LaunchAgents"
 LABELS="com.oscout.backend com.oscout.backup com.oscout.awake"
 DOMAIN="gui/$(id -u)"
 
-unload() { launchctl bootout "$DOMAIN/$1" 2>/dev/null || true; }
+# bootout returns before the agent is gone; bootstrapping too soon fails with "5: Input/output error"
+unload() {
+  launchctl bootout "$DOMAIN/$1" 2>/dev/null || true
+  for _ in $(seq 1 20); do launchctl print "$DOMAIN/$1" >/dev/null 2>&1 || return 0; sleep 0.5; done
+}
+load() {
+  for _ in 1 2 3 4 5; do launchctl bootstrap "$DOMAIN" "$AGENTS/$1.plist" 2>/dev/null && return 0; sleep 1; done
+  launchctl bootstrap "$DOMAIN" "$AGENTS/$1.plist"  # last try shows the error
+}
 
 case "${1:-install}" in
   install)
@@ -22,7 +30,7 @@ case "${1:-install}" in
     for l in $LABELS; do
       unload "$l"
       sed "s#__ROOT__#$ROOT#g" "$ROOT/deploy/macos/$l.plist" >"$AGENTS/$l.plist"
-      launchctl bootstrap "$DOMAIN" "$AGENTS/$l.plist"
+      load "$l"
       echo "loaded $l"
     done
     for i in $(seq 1 30); do curl -fs http://127.0.0.1:8000/health >/dev/null && break; sleep 1; done
