@@ -1,0 +1,48 @@
+from datetime import date, datetime
+
+from app.core.clock import IST
+from app.market.providers import MockProvider
+from app.options import chain, greeks as bs
+from tests.conftest import client_at
+
+
+def test_iv_roundtrip_and_put_call_delta():
+    t = 5 / 365
+    p = bs.price(22500, 22600, t, 0.15, True)
+    assert abs(bs.implied_vol(p, 22500, 22600, t, True) - 0.15) < 1e-4
+    c, q = bs.greeks(22500, 22500, t, 0.15, True), bs.greeks(22500, 22500, t, 0.15, False)
+    assert abs((c["delta"] - q["delta"]) - 1) < 1e-9 and c["theta"] < 0 and c["gamma"] > 0 and c["vega"] > 0
+
+
+def test_build_marks_atm_and_signal_strike():
+    raw = MockProvider().option_chain("NIFTY", 10)
+    out = chain.build(raw, "CALL")
+    strikes = [r["strike"] for r in out["rows"]]
+    assert len(strikes) == 21 and strikes == sorted(strikes) and strikes[1] - strikes[0] == 50
+    assert abs(out["atm"] - out["spot"]) <= 25
+    ce = {r["strike"]: r["ce"] for r in out["rows"]}
+    assert out["signal"]["option"] == "CE" and out["signal"]["strike"] < out["atm"]  # 0.70 delta call is in the money
+    assert abs(ce[out["signal"]["strike"]]["delta"] - 0.70) < 0.15
+    assert all(r["pe"]["oi_chg_pct"] is not None for r in out["rows"])
+
+
+def test_mock_expiries():
+    m = MockProvider()
+    assert m._expiry("NIFTY", date(2026, 11, 2)) == date(2026, 11, 3)        # Tuesday weekly
+    assert m._expiry("SENSEX", date(2026, 11, 2)) == date(2026, 11, 5)       # Thursday weekly
+    assert m._expiry("BANKNIFTY", date(2026, 11, 2)) == date(2026, 11, 24)   # last Tuesday of month
+    assert m._expiry("BANKNIFTY", date(2026, 11, 25)) == date(2026, 12, 29)
+
+
+def test_years_to_expiry_floor():
+    assert chain.years_to_expiry(date(2026, 11, 3), datetime(2026, 11, 3, 16, 0, tzinfo=IST)) == 60 / bs.YEAR
+
+
+def test_chain_endpoint(db):
+    c = client_at("127.0.0.1")
+    r = c.get("/api/options/chain?symbol=sensex")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["symbol"] == "SENSEX" and len(body["rows"]) == 21 and body["signal"] is None
+    assert body["rows"][0]["ce"]["iv"] > 0
+    assert c.get("/api/options/chain?symbol=INDIAVIX").status_code == 404

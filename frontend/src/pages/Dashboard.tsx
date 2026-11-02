@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, ScanResult, Setup } from "../api/client";
 import { CandleChart, ChartOverlay } from "../components/CandleChart";
 import { Sparkline } from "../components/Charts";
+import { ChainPanel } from "../components/OptionChain";
 import { ScanDetailDrawer, SignalDetailDrawer } from "../components/Details";
 import { Badge, Dir, ErrorNote, PageHeader } from "../components/ui";
 import { n, signed, timeIST } from "../lib/format";
@@ -99,8 +100,8 @@ function LastExit({ s }: { s: Setup }) {
 
 const CARD_ROWS = 5; // header · verdict · signal or checks · chart · footer, shared by both cards
 
-type Tab = "signal" | "chart";
-const TABS: { k: Tab; label: string }[] = [{ k: "signal", label: "Signal" }, { k: "chart", label: "Chart" }];
+type Tab = "signal" | "chart" | "chain";
+const TABS: { k: Tab; label: string }[] = [{ k: "signal", label: "Signal" }, { k: "chart", label: "Chart" }, { k: "chain", label: "Chain" }];
 const tabKey = (sym: string) => `oscout.cardTab.${sym}`;
 
 /** Tab per card, remembered in this browser (storage may be blocked: then it just defaults to Signal). */
@@ -141,6 +142,12 @@ function ChartTab({ sym, scanId, setups, level }: { sym: string; scanId?: number
 }
 
 /** One index card. Its rows sit on the parent grid (subgrid), so both cards line up section by section. */
+/** Chain tab body: polls every 15s only while this tab is open (it unmounts otherwise). */
+function ChainTab({ sym }: { sym: string }) {
+  const { data, error } = useApi(() => api.chain(sym), [sym], 15000);
+  return <ChainPanel sym={sym} c={data} error={error} />;
+}
+
 function SymbolCard({ sym, r, signal, lastExit, setups, onSignal, onDetails }: {
   sym: string; r: ScanResult | null; signal?: Setup; lastExit?: Setup; setups: Setup[]; onSignal: (id: number) => void; onDetails: (id: number) => void;
 }) {
@@ -172,11 +179,11 @@ function SymbolCard({ sym, r, signal, lastExit, setups, onSignal, onDetails }: {
       </div>
     </header>
   );
-  if (tab === "chart") return (
+  if (tab !== "signal") return (
     <section className={`card p-5 grid gap-4 ${isSignal || signal ? "border-accent" : ""}`} style={rows}>
       {header}
       <div style={{ gridRow: `span ${CARD_ROWS - 1}` }} className="min-w-0">
-        <ChartTab sym={sym} scanId={r.id} setups={setups} level={level} />
+        {tab === "chart" ? <ChartTab sym={sym} scanId={r.id} setups={setups} level={level} /> : <ChainTab sym={sym} />}
       </div>
     </section>
   );

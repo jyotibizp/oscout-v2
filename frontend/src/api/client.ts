@@ -46,6 +46,12 @@ export interface ScanResult {
   };
 }
 export interface Candle { ts: string; open: number; high: number; low: number; close: number; adx: number | null; pdi: number | null; mdi: number | null; atr: number | null }
+export interface ChainSide { ltp: number | null; chg_pct: number | null; oi: number | null; oi_chg_pct: number | null; iv: number | null; delta: number | null; theta: number | null; gamma: number | null; vega: number | null }
+export interface OptionChain {
+  symbol: string; expiry: string; spot: number; atm: number | null; days_to_expiry: number; as_of: string;
+  rows: { strike: number; ce: ChainSide | null; pe: ChainSide | null }[];
+  signal: { direction: "CALL" | "PUT"; option: "CE" | "PE"; strike: number; target_delta: number } | null;
+}
 export interface ScanRun { id: number; trigger: string; candle_ts: string | null; started_at: string; finished_at: string | null; status: string; config_version: string; summary: any }
 export interface Trade {
   id: number; setup_id: number; symbol: string; direction: string; status: string; entry_ts: string; entry_price: number;
@@ -94,6 +100,7 @@ export const api = {
   signalHistory: (p: Record<string, string | number | undefined>) => req<{ total: number; items: Setup[] }>(`/api/signals/history${qs(p)}`),
   signal: (id: number) => req<Setup>(`/api/signals/${id}`),
   candles: (symbol: string, timeframe = "5m", limit = 120) => req<Candle[]>(`/api/market/candles${qs({ symbol, timeframe, limit })}`),
+  chain: (symbol: string, strikes = 10) => req<OptionChain>(`/api/options/chain${qs({ symbol, strikes })}`),
   config: () => req<ConfigResp>("/api/config"),
   saveConfig: (params: ConfigResp["params"], note?: string) => req<{ version: string; changed: { group: string; key: string; old: any; new: any }[]; message?: string }>("/api/config", { method: "PUT", body: JSON.stringify({ params, note }) }),
   resetConfig: () => req<{ version: string }>("/api/config/reset", { method: "POST" }),

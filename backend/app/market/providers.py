@@ -6,6 +6,7 @@ May include the still-forming candle; ingestion filters to completed, aligned ca
 import logging
 import math
 import random
+import threading
 import time as _time
 from datetime import date, datetime, timedelta
 from typing import Protocol
@@ -110,6 +111,66 @@ class KiteProvider:
             _time.sleep(0.35)  # historical API limit ~3 req/s
         return out
 
+    # ---------------- option chain (#15) ----------------
+    _inst_cache: dict = {}
+    _prev_oi: dict = {}
+    _prev_oi_pending: set = set()
+    _lock = threading.Lock()
+
+    def _instruments(self, exchange: str) -> list[dict]:
+        key = (exchange, _today_ist())
+        if key not in self._inst_cache:  # ~MBs; once a day per exchange
+            for old in [k for k in self._inst_cache if k[1] != key[1]]:
+                del self._inst_cache[old]
+            self._inst_cache[key] = self._call(self.kite.instruments, exchange) or []
+        return self._inst_cache[key]
+
+    def _load_prev_oi(self, tokens: list[int], day) -> None:
+        for tok in tokens:
+            try:
+                rows = self._call(self.kite.historical_data, tok, day - timedelta(days=10), day - timedelta(days=1), "day", oi=True) or []
+                self._prev_oi[(day, tok)] = float(rows[-1].get("oi") or 0) if rows else None
+            except ProviderError as e:
+                log.warning("prev-day OI fetch failed", extra={"ctx": {"token": tok, "error": str(e)}})
+            finally:
+                with self._lock:
+                    self._prev_oi_pending.discard((day, tok))
+            _time.sleep(0.35)  # historical API ~3 req/s
+
+    def option_chain(self, symbol: str, each_side: int = 10) -> dict:
+        inst = INSTRUMENTS[symbol]
+        if not inst.opt_exchange:
+            raise ProviderError(f"No options for {symbol}")
+        day = _today_ist()
+        opts = [r for r in self._instruments(inst.opt_exchange)
+                if r.get("name") == inst.opt_name and r.get("instrument_type") in ("CE", "PE") and r["expiry"] >= day]
+        if not opts:
+            raise ProviderUnavailable(f"No {symbol} options in Kite's instrument list")
+        expiry = min(r["expiry"] for r in opts)
+        opts = [r for r in opts if r["expiry"] == expiry]
+        spot = float(self._call(self.kite.quote, [inst.quote_key])[inst.quote_key]["last_price"])
+        strikes = sorted({float(r["strike"]) for r in opts})
+        i = min(range(len(strikes)), key=lambda k: abs(strikes[k] - spot))
+        keep = set(strikes[max(0, i - each_side): i + each_side + 1])
+        picked = [r for r in opts if float(r["strike"]) in keep]
+        quotes = self._call(self.kite.quote, [f"{inst.opt_exchange}:{r['tradingsymbol']}" for r in picked]) or {}
+        with self._lock:  # previous-day OI: fetched once a day in the background, OI change shows once ready
+            todo = [r["instrument_token"] for r in picked if (day, r["instrument_token"]) not in self._prev_oi
+                    and (day, r["instrument_token"]) not in self._prev_oi_pending]
+            self._prev_oi_pending.update((day, t) for t in todo)
+        if todo:
+            threading.Thread(target=self._load_prev_oi, args=(todo, day), daemon=True).start()
+        rows: dict = {}
+        for r in picked:
+            q = quotes.get(f"{inst.opt_exchange}:{r['tradingsymbol']}")
+            if not q:
+                continue
+            row = rows.setdefault(float(r["strike"]), {"strike": float(r["strike"]), "ce": None, "pe": None})
+            row[r["instrument_type"].lower()] = {
+                "ltp": q.get("last_price"), "prev_close": (q.get("ohlc") or {}).get("close"), "oi": q.get("oi"),
+                "oi_prev": self._prev_oi.get((day, r["instrument_token"])), "tradingsymbol": r["tradingsymbol"]}
+        return {"symbol": symbol, "expiry": expiry, "spot": spot, "rows": list(rows.values())}
+
 
 class MockProvider:
     """Deterministic synthetic market (random walk with regime shifts) for development and tests.
@@ -155,6 +216,51 @@ class MockProvider:
                 out += [r for r in self._day(symbol, d) if from_utc <= r["ts"] <= to_utc]
             d += timedelta(days=1)
         return out
+
+    # synthetic chain: Black-Scholes premiums on a smile, OI peaked near ATM (calls above, puts below)
+    def _expiry(self, symbol: str, d: date) -> date:
+        if symbol == "SENSEX":  # weekly Thursday
+            return d + timedelta(days=(3 - d.weekday()) % 7)
+        tue = d + timedelta(days=(1 - d.weekday()) % 7)
+        if symbol == "NIFTY":  # weekly Tuesday
+            return tue
+        while True:  # monthly: last Tuesday of the month
+            nxt = tue + timedelta(days=7)
+            if nxt.month != tue.month:
+                if tue >= d:
+                    return tue
+            tue = nxt
+
+    def option_chain(self, symbol: str, each_side: int = 10) -> dict:
+        from app.core.clock import now_utc
+        from app.options import greeks as bs
+        from app.options.chain import years_to_expiry
+
+        inst = INSTRUMENTS[symbol]
+        if not inst.strike_step:
+            raise ProviderError(f"No options for {symbol}")
+        now = now_utc()
+        bars = self.fetch_5m(symbol, now - timedelta(days=5), now)
+        spot = bars[-1]["close"] if bars else self.BASE[symbol]
+        day = to_ist(now).date()
+        expiry = self._expiry(symbol, day)
+        t = years_to_expiry(expiry, now)
+        step = inst.strike_step
+        atm = round(spot / step) * step
+        rows = []
+        for k in range(-each_side, each_side + 1):
+            strike = float(atm + k * step)
+            rnd = random.Random(f"{self.seed}-{symbol}-{day}-{strike}")
+            iv = 0.13 + 0.6 * abs(strike / spot - 1)
+            row = {"strike": strike}
+            for side, call in (("ce", True), ("pe", False)):
+                ltp = round(max(0.05, bs.price(spot, strike, t, iv, call)), 2)
+                far = (strike - spot) / step * (1 if call else -1)  # >0 = out of the money
+                oi = round(1e5 * 40 * math.exp(-((far - 2) ** 2) / 30) * rnd.uniform(0.7, 1.3) + 1e5 * rnd.uniform(0.5, 2))
+                row[side] = {"ltp": ltp, "prev_close": round(ltp * rnd.uniform(0.75, 1.3), 2), "oi": oi,
+                             "oi_prev": round(oi * rnd.uniform(0.7, 1.2)), "tradingsymbol": f"{symbol}{int(strike)}{side.upper()}"}
+            rows.append(row)
+        return {"symbol": symbol, "expiry": expiry, "spot": spot, "rows": rows}
 
 
 __all__ = ["MarketDataProvider", "KiteProvider", "MockProvider", "ProviderError", "AuthError", "ProviderUnavailable", "IST"]

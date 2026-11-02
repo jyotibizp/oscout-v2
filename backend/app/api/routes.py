@@ -16,9 +16,10 @@ from app.db.models import (MarketCandle, ScanResult, ScanRun, SignalEvent, Signa
 from app.db.session import get_db
 from app.market import health
 from app.market.factory import get_provider, save_token
-from app.market.providers import AuthError
+from app.market.providers import AuthError, ProviderError
 from app.market.repository import load_bars
 from app.market.symbols import TRADABLE
+from app.options import chain as option_chain
 from app.performance import metrics
 from app.scanner.scheduler import auto_scanner
 from app.scanner.service import run_scan
@@ -44,6 +45,22 @@ def candles(symbol: str, timeframe: str = "5m", limit: int = Query(150, le=1000)
     bars = load_bars(db, symbol.upper(), timeframe, p, cfg.atr.atr_period, limit)
     return [{"ts": b.ts.isoformat(), "open": b.open, "high": b.high, "low": b.low, "close": b.close,
              "adx": b.adx, "pdi": b.pdi, "mdi": b.mdi, "atr": b.atr} for b in bars]
+
+
+@router.get("/options/chain")
+def options_chain(symbol: str, strikes: int = Query(10, ge=1, le=25), db: Session = Depends(get_db)):
+    """Nearest-expiry chain, ATM ± `strikes`, with IV / Greeks; marks the ~0.70 delta strike of an open signal."""
+    sym = symbol.upper()
+    if sym not in TRADABLE:
+        raise HTTPException(404, f"Unknown symbol {symbol}")
+    try:
+        raw = get_provider().option_chain(sym, strikes)
+    except AuthError as e:
+        raise HTTPException(401, str(e))
+    except ProviderError as e:
+        raise HTTPException(503, str(e))
+    sig = db.scalar(select(SignalSetup).where(SignalSetup.symbol == sym, SignalSetup.state.in_(OPEN)).order_by(SignalSetup.id.desc()))
+    return option_chain.build(raw, sig.direction if sig else None)
 
 
 # ---------------- scans ----------------

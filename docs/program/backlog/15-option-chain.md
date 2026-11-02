@@ -1,6 +1,6 @@
 # #15 Option chain tab on each index card
 
-Status: Groomed (14 Oct 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
+Status: Built, needs Kite spot check (2 Nov 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
 
 **Why:** when a signal fires I open Kite to see the chain (premiums, OI build-up around ATM). I want that view on the card itself.
 
@@ -27,3 +27,7 @@ Status: Groomed (14 Oct 2026) · Index: [BACKLOG.md](../../../BACKLOG.md)
 - pytest: chain endpoint on mock data; vitest: tab + toggle render; existing tests green.
 
 **Estimate:** 1 story, ~1 day. Depends on #11 (tabs); shares the Greeks code with #1.
+
+**Built:** `GET /api/options/chain?symbol=&strikes=10` (`api/routes.py`), `options/greeks.py` (BS, IV; r = 6.5%), `options/chain.py`, `option_chain()` in Kite + Mock providers, UI `components/OptionChain.tsx`.
+- Kite path not yet run on live data: first chain of the day fetches previous-day OI in the background (~15s), so OI chg% shows "—" until then.
+- To do on the Mac: spot-check LTP / OI vs Kite's chain (OI unit: Kite quote `oi` shown ÷ 1e5 as lakhs).

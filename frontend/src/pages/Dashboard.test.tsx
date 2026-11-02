@@ -37,3 +37,20 @@ test("card switches to the Chart tab, remembers it, and maximizes", async () => 
   fireEvent.click(screen.getByRole("button", { name: "Close" }));
   expect(screen.queryByRole("dialog")).toBeNull();
 });
+
+test("Chain tab shows the chain with ATM and signal strike, and toggles to Greeks", async () => {
+  const side = (ltp: number, delta: number) => ({ ltp, chg_pct: 1, oi: 2e6, oi_chg_pct: 5, iv: 13, delta, theta: -20, gamma: 0.002, vega: 3 });
+  vi.spyOn(api, "chain").mockResolvedValue({
+    symbol: "NIFTY", expiry: "2026-11-03", spot: 22469, atm: 22450, days_to_expiry: 0.7, as_of: "2026-11-02T10:00:00+00:00",
+    rows: [22400, 22450, 22500].map((k, i) => ({ strike: k, ce: side(90 - i * 30, 0.7 - i * 0.15), pe: side(25 + i * 20, -0.3 - i * 0.15) })),
+    signal: { direction: "CALL", option: "CE", strike: 22400, target_delta: 0.7 },
+  });
+  render(<Dashboard />);
+  fireEvent.click((await screen.findAllByRole("tab", { name: "Chain" }))[0]);
+  expect(await screen.findByText("ATM")).toBeInTheDocument();
+  expect(screen.getByText("CE ●")).toBeInTheDocument();
+  expect(screen.getAllByText(/Spot 22469/).length).toBeGreaterThan(0);
+  expect(screen.queryAllByText("Delta")).toHaveLength(0);
+  fireEvent.click(screen.getByRole("button", { name: "Greeks" }));
+  expect(screen.getAllByText("Delta").length).toBe(2);
+});
