@@ -215,11 +215,11 @@ export default function Account() {
           {(f.date_from || f.date_to) && <button className="btn !px-3 !py-1" onClick={() => setF({ symbol: f.symbol })}>All time</button>}
           <input ref={file} type="file" accept=".csv,text/csv" className="hidden" aria-label="Tradebook CSV" onChange={onFile} />
           <button className="btn" onClick={() => file.current?.click()}>Import tradebook CSV</button>
-          <button className="btn" onClick={sync}>Pull from Kite</button>
+          <button className="btn" onClick={sync}>Pull today from Kite</button>
         </div>} />
       <div className="mb-4 text-xs text-ink-faint">
         {status ? <>{status.fills} fills{status.first_fill ? ` from ${dateIST(status.first_fill)} to ${dateIST(status.last_fill)}` : ""} · {status.orders} orders
-          · last Kite pull {status.last_sync.at ? dateTimeIST(status.last_sync.at) : "not yet"}{status.last_sync.error ? ` (error: ${status.last_sync.error})` : ""}</> : "…"}
+          · last Kite pull (daily 15:45 IST) {status.last_sync.at ? dateTimeIST(status.last_sync.at) : "not yet"}{status.last_sync.error ? ` (error: ${status.last_sync.error})` : ""}</> : "…"}
         {msg && <span className="ml-3 text-ink-soft">{msg}</span>}
       </div>
       <ErrorNote error={s.error} />

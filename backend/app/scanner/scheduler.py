@@ -7,13 +7,14 @@ from datetime import datetime, time, timedelta
 from starlette.concurrency import run_in_threadpool
 
 from app.account import ingest as account_ingest
-from app.core.clock import is_market_open, next_completion, now_utc, to_ist
+from app.core.clock import IST, as_utc, is_market_open, is_weekday, next_completion, now_utc, to_ist
 from app.db.session import SessionLocal, get_engine
 from app.market.factory import get_provider
 from app.scanner.service import run_scan
 from app.strategy import store
 
 log = logging.getLogger(__name__)
+ACCOUNT_PULL_AT = time(15, 45)  # IST, after the close (#24)
 
 
 class AutoScanner:
@@ -24,6 +25,7 @@ class AutoScanner:
         self.last_error: str | None = None
         self.next_run: datetime | None = None
         self._task: asyncio.Task | None = None
+        self._acct_task: asyncio.Task | None = None
 
     def _cfg(self):
         get_engine()
@@ -52,8 +54,7 @@ class AutoScanner:
 
     @staticmethod
     def _account_sync(final: bool) -> None:
-        """Account trade log (#24): pull today's fills/orders with every auto scan; the last one also counts
-        modifications. Never affects scanning."""
+        """Account trade log (#24): today's fills/orders (+ modification counts). Never affects scanning."""
         p = get_provider()
         if p.name != "kite" or not p.is_connected():
             return
@@ -84,7 +85,6 @@ class AutoScanner:
                 self.last_run = now_utc()
                 self.last_result = await run_in_threadpool(self._scan_once)
                 self.last_error = None
-                await run_in_threadpool(self._account_sync, to_ist(boundary).time() >= time(15, 25))
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001 - keep the loop alive
@@ -92,17 +92,38 @@ class AutoScanner:
                 log.exception("auto scan failed")
                 await asyncio.sleep(5)
 
+    async def _account_loop(self):
+        """Once a day at ACCOUNT_PULL_AT IST (weekdays). Kite only returns today's orders/trades."""
+        while True:
+            try:
+                n = to_ist(now_utc())
+                target = datetime.combine(n.date(), ACCOUNT_PULL_AT, tzinfo=IST)
+                if n >= target:
+                    target += timedelta(days=1)
+                await self._sleep_until(as_utc(target))
+                today = to_ist(now_utc()).date()
+                if today == target.date() and is_weekday(today):  # woke the same day (Mac sleep)
+                    await run_in_threadpool(self._account_sync, True)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                log.exception("account pull failed")
+                await asyncio.sleep(60)
+
     def start(self):
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._loop())
+        if self._acct_task is None or self._acct_task.done():
+            self._acct_task = asyncio.create_task(self._account_loop())
 
     async def stop(self):
-        if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+        for t in (self._task, self._acct_task):
+            if t:
+                t.cancel()
+                try:
+                    await t
+                except asyncio.CancelledError:
+                    pass
 
 
 auto_scanner = AutoScanner()

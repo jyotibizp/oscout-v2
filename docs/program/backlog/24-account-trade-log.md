@@ -5,7 +5,7 @@ Status: Built (4 Nov 2026), Kite pull needs Mac check · Index: [BACKLOG.md](../
 **Why:** Stop overtrading (orders every 1–5 min). Discipline by showing the numbers, no caps or alerts.
 
 **Data in**
-- Kite `trades()` + `orders()` pulled with every auto scan (today only); last scan of the day also counts modifications (`order_history`). "Pull from Kite" button.
+- Kite `trades()` + `orders()` + modifications (`order_history`) pulled once a day at 15:45 IST (pradeep, 4 Nov). "Pull today from Kite" button. Kite has no past dates: a missed day = Console CSV for that range.
 - Console tradebook CSV import for history. Dedupe on exchange + trade_id. Equity rows skipped.
 - Fills insert-only (`account_trades`); orders keep latest state (`account_orders`). Order stats start from the first pull.
 
