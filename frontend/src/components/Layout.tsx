@@ -11,12 +11,14 @@ const NAV: { title: string; items: { to: string; label: string }[] }[] = [
   { title: "Signals", items: [{ to: "/signals/live", label: "Live Signals" }, { to: "/signals/history", label: "Signal History" }] },
   { title: "Scans", items: [{ to: "/scans", label: "Scan History" }, { to: "/gaps", label: "Scan Gaps" }] },
   { title: "Performance", items: [{ to: "/performance", label: "Overview" }, { to: "/performance/trades", label: "Trades" }, { to: "/performance/analytics", label: "Analytics" }] },
+  { title: "Account", items: [{ to: "/account", label: "My Trades" }] },  // admin only (#24)
   { title: "Strategy", items: [{ to: "/strategy", label: "ADX Configuration" }] },
   { title: "Market Data", items: [{ to: "/data-health", label: "Data Health" }] },
   { title: "System", items: [{ to: "/settings", label: "Settings" }] },
 ];
 
 function Sidebar() {
+  const admin = useRole() === "admin";
   return (
     <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-line bg-panel">
       <div className="px-5 h-14 flex items-center border-b border-line">
@@ -24,7 +26,7 @@ function Sidebar() {
         <span className="ml-2 text-xs text-ink-faint uppercase tracking-widest">ADX</span>
       </div>
       <nav className="flex-1 overflow-y-auto py-3">
-        {NAV.map((g) => (
+        {NAV.filter((g) => admin || g.title !== "Account").map((g) => (
           <div key={g.title || "root"} className="mb-3">
             {g.title && <div className="px-5 pb-1 text-xs uppercase tracking-widest text-ink-faint">{g.title}</div>}
             {g.items.map((i) => (

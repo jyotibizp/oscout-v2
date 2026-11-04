@@ -111,6 +111,16 @@ class KiteProvider:
             _time.sleep(0.35)  # historical API limit ~3 req/s
         return out
 
+    # ---------------- account (#24): today's fills and orders only ----------------
+    def account_trades(self) -> list[dict]:
+        return self._call(self.kite.trades) or []
+
+    def account_orders(self) -> list[dict]:
+        return self._call(self.kite.orders) or []
+
+    def order_history(self, order_id: str) -> list[dict]:
+        return self._call(self.kite.order_history, order_id) or []
+
     # ---------------- option chain (#15) ----------------
     _inst_cache: dict = {}
     _prev_oi: dict = {}

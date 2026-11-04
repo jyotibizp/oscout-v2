@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.account import analysis as account_analysis
+from app.account import ingest as account_ingest
 from app.api import serializers as ser
 from app.api.access import is_admin
 from app.core.clock import IST, as_utc, is_market_open, now_utc, to_ist
@@ -354,6 +356,50 @@ def perf_equity(symbol: str | None = None, exclude_late: bool = False, date_from
 def perf_analytics(exclude_late: bool = False, date_from: date | None = None, date_to: date | None = None,
                    db: Session = Depends(get_db)):
     return metrics.analytics(db, exclude_late, *_day_range(date_from, date_to))
+
+
+# ---------------- account trade log (#24, admin only) ----------------
+@router.get("/account/status")
+def account_status(db: Session = Depends(get_db)):
+    return account_analysis.status(db)
+
+
+@router.get("/account/trades")
+def account_trades(symbol: str | None = None, date_from: date | None = None, date_to: date | None = None,
+                   db: Session = Depends(get_db)):
+    rows = account_analysis.round_trips(db, *_day_range(date_from, date_to), symbol)
+    return account_analysis.public(rows[::-1])
+
+
+@router.get("/account/stats")
+def account_stats(symbol: str | None = None, date_from: date | None = None, date_to: date | None = None,
+                  db: Session = Depends(get_db)):
+    st = account_analysis.stats(db, *_day_range(date_from, date_to), symbol)
+    return st
+
+
+@router.post("/account/import")
+async def account_import(request: Request, db: Session = Depends(get_db)):
+    """Body: the Kite Console tradebook CSV as text."""
+    raw = await request.body()
+    if len(raw) > 20_000_000:
+        raise HTTPException(413, "file too large")
+    try:
+        return account_ingest.import_csv(db, raw.decode("utf-8", errors="replace"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/account/sync")
+def account_sync(db: Session = Depends(get_db)):
+    p = get_provider()
+    if p.name != "kite":
+        return {"trades_added": 0, "orders": 0, "skipped": "mock provider: no broker account"}
+    try:
+        return account_ingest.sync(db, p, final=not is_market_open(now_utc()))
+    except ProviderError as e:
+        account_ingest.last_sync.update(error=str(e))
+        raise HTTPException(503, str(e))
 
 
 # ---------------- system ----------------

@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import "./index.css";
 import { RefreshContext } from "./lib/hooks";
+import Account from "./pages/Account";
 import Dashboard from "./pages/Dashboard";
 import { Analytics, PerformanceOverview, Trades } from "./pages/Performance";
 import Gaps from "./pages/Gaps";
@@ -27,6 +28,7 @@ export function App() {
           <Route path="performance" element={<PerformanceOverview />} />
           <Route path="performance/trades" element={<Trades />} />
           <Route path="performance/analytics" element={<Analytics />} />
+          <Route path="account" element={<Account />} />
           <Route path="strategy" element={<Strategy />} />
           <Route path="data-health" element={<DataHealth />} />
           <Route path="settings" element={<Settings />} />

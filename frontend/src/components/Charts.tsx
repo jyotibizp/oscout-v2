@@ -2,13 +2,14 @@ import { useState } from "react";
 
 /** Minimal, dependency-free SVG charts: one hue, recessive grid, hover tooltips. */
 
-export function LineChart({ points, height = 220, format = (v: number) => v.toFixed(1), label }: {
+export function LineChart({ points, height = 220, format = (v: number) => v.toFixed(1), label, y2, y2Label }: {
   points: { x: string; y: number; tip?: string }[]; height?: number; format?: (v: number) => string; label: string;
+  y2?: number[]; y2Label?: string;  // optional second series on the same x (dashed)
 }) {
   const [hover, setHover] = useState<number | null>(null);
   if (points.length === 0) return <div className="h-40 grid place-items-center text-sm text-ink-faint">No closed trades yet</div>;
   const W = 640, H = height, m = { l: 48, r: 12, t: 12, b: 24 };
-  const ys = points.map((p) => p.y).concat(0);
+  const ys = points.map((p) => p.y).concat(0, ...(y2 ?? []));
   const lo = Math.min(...ys), hi = Math.max(...ys);
   const span = hi - lo || 1;
   const X = (i: number) => m.l + ((W - m.l - m.r) * i) / Math.max(points.length - 1, 1);
@@ -32,6 +33,7 @@ export function LineChart({ points, height = 220, format = (v: number) => v.toFi
           </g>
         ))}
         <line x1={m.l} x2={W - m.r} y1={Y(0)} y2={Y(0)} stroke="#ebebeb" strokeDasharray="3 3" />
+        {y2 && <path d={y2.map((v, i) => `${i ? "L" : "M"}${X(i)},${Y(v)}`).join("")} fill="none" stroke="#ebebeb" strokeWidth="1.5" strokeDasharray="5 4" />}
         <path d={path} fill="none" stroke="#a99bff" strokeWidth="2" />
         {hover !== null && (
           <g>
@@ -44,6 +46,7 @@ export function LineChart({ points, height = 220, format = (v: number) => v.toFi
         <div className="pointer-events-none absolute top-2 right-2 rounded border border-line bg-canvas/95 px-2 py-1 text-xs">
           <div className="text-ink-faint">{points[hover].x}</div>
           <div className="num text-ink">{format(points[hover].y)}</div>
+          {y2 && <div className="num text-ink-soft">{y2Label}: {format(y2[hover])}</div>}
           {points[hover].tip && <div className="text-ink-soft">{points[hover].tip}</div>}
         </div>
       )}

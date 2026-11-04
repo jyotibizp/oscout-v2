@@ -2,11 +2,12 @@
 as the SCAN NOW button. AUTO scans are unique per candle, so restarts or double triggers cannot duplicate them."""
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 from starlette.concurrency import run_in_threadpool
 
-from app.core.clock import is_market_open, next_completion, now_utc
+from app.account import ingest as account_ingest
+from app.core.clock import is_market_open, next_completion, now_utc, to_ist
 from app.db.session import SessionLocal, get_engine
 from app.market.factory import get_provider
 from app.scanner.service import run_scan
@@ -50,6 +51,20 @@ class AutoScanner:
             return f"#{run.id} {run.status}" if created else f"#{run.id} already scanned"
 
     @staticmethod
+    def _account_sync(final: bool) -> None:
+        """Account trade log (#24): pull today's fills/orders with every auto scan; the last one also counts
+        modifications. Never affects scanning."""
+        p = get_provider()
+        if p.name != "kite" or not p.is_connected():
+            return
+        try:
+            with SessionLocal() as db:
+                account_ingest.sync(db, p, final=final)
+        except Exception as e:  # noqa: BLE001
+            account_ingest.last_sync.update(error=str(e))
+            log.warning("account sync failed", extra={"ctx": {"error": str(e)}})
+
+    @staticmethod
     async def _sleep_until(target: datetime, nap: float = 15.0):
         """Short naps checked against the wall clock. One long asyncio.sleep (e.g. 15:30 -> 09:20) runs on the
         monotonic clock, which on macOS stops while the machine sleeps, so the first scan overshoots by hours."""
@@ -69,6 +84,7 @@ class AutoScanner:
                 self.last_run = now_utc()
                 self.last_result = await run_in_threadpool(self._scan_once)
                 self.last_error = None
+                await run_in_threadpool(self._account_sync, to_ist(boundary).time() >= time(15, 25))
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001 - keep the loop alive

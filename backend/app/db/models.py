@@ -198,3 +198,47 @@ class BrokerSession(Base):
     access_token: Mapped[str | None] = mapped_column(String(128))
     token_date: Mapped[date | None] = mapped_column(Date)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, server_default=func.now(), onupdate=func.now())
+
+
+class AccountTrade(Base):
+    """Broker fills (#24), insert-only: Kite trades() pulled during the day plus Console tradebook CSV imports."""
+    __tablename__ = "account_trades"
+    __table_args__ = (UniqueConstraint("exchange", "trade_id", name="uq_account_trade"),
+                      Index("ix_account_trades_ts", "fill_ts"))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    trade_id: Mapped[str] = mapped_column(String(32))
+    order_id: Mapped[str | None] = mapped_column(String(32))
+    exchange: Mapped[str] = mapped_column(String(8))           # NFO | BFO
+    tradingsymbol: Mapped[str] = mapped_column(String(48))
+    underlying: Mapped[str] = mapped_column(String(24))        # NIFTY | SENSEX | BANKNIFTY | stock name
+    instrument: Mapped[str] = mapped_column(String(4))         # CE | PE | FUT
+    side: Mapped[str] = mapped_column(String(4))               # BUY | SELL
+    quantity: Mapped[int] = mapped_column(Integer)
+    price: Mapped[float] = mapped_column(Float)
+    fill_ts: Mapped[datetime] = mapped_column(UTCDateTime)
+    source: Mapped[str] = mapped_column(String(8))             # KITE | CSV
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, server_default=func.now())
+
+
+class AccountOrder(Base):
+    """Broker orders (#24), one row per order_id; status / fills follow Kite through the day. Kite only lists
+    today's orders, so order stats start from the first day the pull runs."""
+    __tablename__ = "account_orders"
+    __table_args__ = (Index("ix_account_orders_ts", "placed_ts"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    order_id: Mapped[str] = mapped_column(String(32), unique=True)
+    placed_ts: Mapped[datetime] = mapped_column(UTCDateTime)
+    exchange: Mapped[str] = mapped_column(String(8))
+    tradingsymbol: Mapped[str] = mapped_column(String(48))
+    underlying: Mapped[str] = mapped_column(String(24))
+    side: Mapped[str] = mapped_column(String(4))
+    order_type: Mapped[str | None] = mapped_column(String(12))
+    product: Mapped[str | None] = mapped_column(String(8))
+    quantity: Mapped[int] = mapped_column(Integer)
+    filled_quantity: Mapped[int] = mapped_column(Integer, default=0)
+    price: Mapped[float | None] = mapped_column(Float)
+    average_price: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(24))            # COMPLETE | CANCELLED | REJECTED | OPEN | ...
+    status_message: Mapped[str | None] = mapped_column(String(300))
+    modifications: Mapped[int | None] = mapped_column(Integer)  # from order_history at the end-of-day pull
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, server_default=func.now(), onupdate=func.now())

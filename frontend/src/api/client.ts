@@ -92,6 +92,39 @@ export interface Summary {
   funnel: { evaluations: number; gate1_pass: number; gate2_pass: number; atr_pass: number; vix_pass: number; signals: number; rejection_rate: Record<string, number | null> };
 }
 
+export interface AcctAgg { trades: number; wins: number; win_rate: number | null; net: number; avg: number | null; avg_win: number | null; avg_loss: number | null; profit_factor: number | null }
+export type AcctBucket = AcctAgg & { bucket: string };
+export interface AcctTrade {
+  tradingsymbol: string; underlying: string; instrument: string; side: "LONG" | "SHORT"; view: "CALL" | "PUT"; qty: number;
+  entry_ts: string; exit_ts: string | null; status: "OPEN" | "CLOSED"; avg_entry: number; avg_exit: number | null; hold_min: number | null;
+  gross: number | null; charges: number; brokerage: number; stt: number; net: number | null; orders: number; fills: number; adds: number;
+  day: string; day_seq: number; signal_id: number | null; on_signal: boolean; signal_delay_min: number | null; gap_prev_min: number | null;
+  after: "WIN" | "LOSS" | null; gap_after_exit_min: number | null; flags: string[];
+}
+export interface AcctDay { day: string; trades: number; net: number; peak: number; burst15: number; orders: { placed: number; complete: number; cancelled: number; rejected: number; modified: number | null } | null }
+export interface AcctStats {
+  totals: AcctAgg & { open: number; days: number; green_days: number; first: string | null; last: string | null };
+  stop_after: { n: number; net: number; vs_actual: number }[];
+  gap_prev: AcctBucket[];
+  gave_back: { days: number; total: number; green_to_red: number; of_days: number };
+  charges: { gross: number; charges: number; net: number; brokerage: number; stt: number; pct_of_gross: number | null; per_trade: number | null };
+  system: { signals: number; net_r: number; win_rate: number | null; taken: number; on_signal: AcctAgg; off_signal: AcctAgg };
+  tilt: { after_loss_min: number | null; after_loss_n: number; after_win_min: number | null; after_win_n: number };
+  after_two_losses: { next: AcctAgg; overall_win_rate: number | null };
+  scalp: AcctBucket[];
+  heatmap: { weekday: number; hour: number; trades: number; net: number }[];
+  by_trade_number: AcctBucket[];
+  by_day_count: { bucket: string; days: number; net: number; avg_day: number; green_pct: number }[];
+  reentry_after_loss: AcctBucket[]; reentry_after_win: AcctAgg;
+  flags: Record<string, AcctAgg>;
+  frequency: { days: number; trades_per_day: number | null; max_per_day: number | null; by_hour: { hour: number; trades: number }[]; max_burst15: number | null };
+  orders: { placed: number; complete: number; cancelled: number; rejected: number; modified: number | null; days: number; per_day: number | null; since: string | null; shortest_gap_sec: number | null; median_gap_sec: number | null; per_round_trip: number | null; by_hour: { hour: number; orders: number }[] };
+  days: AcctDay[];
+  equity: { ts: string; cum: number; cum_on_signal: number }[];
+}
+export interface AcctFilter { symbol?: string; date_from?: string; date_to?: string }
+export interface AcctStatus { fills: number; first_fill: string | null; last_fill: string | null; orders: number; last_sync: { at: string | null; trades_added: number; orders: number; error: string | null } }
+
 export const api = {
   health: () => req<Health>("/api/system/health"),
   whoami: () => req<{ role: "admin" | "viewer" }>("/api/system/whoami"),
@@ -119,5 +152,10 @@ export const api = {
   summary: (symbol?: string, exclude_late?: boolean, r: PerfRange = {}) => req<Summary>(`/api/performance/summary${qs({ symbol, exclude_late: exclude_late ? "true" : undefined, ...r })}`),
   trades: (p: Record<string, string | undefined> = {}) => req<Trade[]>(`/api/performance/trades${qs(p)}`),
   equity: (exclude_late?: boolean, r: PerfRange = {}) => req<{ ts: string; symbol: string; pnl_points: number; cum_points: number; r: number | null; cum_r: number }[]>(`/api/performance/equity${qs({ exclude_late: exclude_late ? "true" : undefined, ...r })}`),
+  acctStatus: () => req<AcctStatus>("/api/account/status"),
+  acctStats: (f: AcctFilter = {}) => req<AcctStats>(`/api/account/stats${qs({ ...f })}`),
+  acctTrades: (f: AcctFilter = {}) => req<AcctTrade[]>(`/api/account/trades${qs({ ...f })}`),
+  acctImport: (csv: string) => req<{ added: number; skipped: number; errors: string[]; error_count: number }>("/api/account/import", { method: "POST", body: csv, headers: { "Content-Type": "text/csv" } }),
+  acctSync: () => req<{ trades_added: number; orders: number; skipped?: string }>("/api/account/sync", { method: "POST" }),
   analytics: (exclude_late?: boolean, r: PerfRange = {}) => req<Record<string, any[]>>(`/api/performance/analytics${qs({ exclude_late: exclude_late ? "true" : undefined, ...r })}`),
 };

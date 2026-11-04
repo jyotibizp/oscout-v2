@@ -24,7 +24,8 @@ def is_admin(request: Request) -> bool:
 
 def needs_admin(request: Request) -> bool:
     p = request.url.path
-    return p in ADMIN_GET_PATHS or (p.startswith("/api/") and request.method in WRITE_METHODS)
+    # account trade log (#24) is private: viewers on Tailscale can't read it either
+    return p in ADMIN_GET_PATHS or p.startswith("/api/account") or (p.startswith("/api/") and request.method in WRITE_METHODS)
 
 
 async def viewer_guard(request: Request, call_next):
