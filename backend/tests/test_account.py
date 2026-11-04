@@ -60,7 +60,7 @@ def test_round_trip_scale_in_out_and_avg_down():
                                            ("SELL", 75, 95, t0 + timedelta(minutes=5)), ("SELL", 75, 105, t0 + timedelta(minutes=9))))
     assert len(rts) == 1
     r = rts[0]
-    assert r.closed and r.side == "LONG" and r.qty == 150 and r.avg_down and r.view == "CALL"
+    assert r.closed and r.side == "LONG" and r.qty == 150 and r.avg_down and r.view == "CALL" and r.adds == 1
     assert r.sell_value - r.buy_value == 75 * (95 + 105 - 100 - 90)
 
 
@@ -116,6 +116,15 @@ def test_stats_overtrading(db):
     assert st["gave_back"]["days"] == 1 and st["gave_back"]["green_to_red"] == 1
     assert st["tilt"]["after_loss_n"] == 2
     assert [b["bucket"] for b in st["by_trade_number"]] == ["1", "2", "3", "4"]
+    assert st["adds"][0]["bucket"] == "0" and st["adds"][0]["trades"] == 4
+    assert {b["bucket"] for b in st["hold"]} == {"<5m", "5-15m"}
+
+
+def test_adds_count_orders_not_fills():
+    t0 = ist(2026, 10, 6, 9, 20)
+    f = fills(("BUY", 40, 100, t0), ("BUY", 35, 100, t0), ("BUY", 75, 95, t0 + timedelta(minutes=2)), ("SELL", 150, 99, t0 + timedelta(minutes=3)))
+    f[1].order_id = f[0].order_id  # first order filled in two parts
+    assert analysis.build_round_trips(f)[0].adds == 1
 
 
 class FakeKite:

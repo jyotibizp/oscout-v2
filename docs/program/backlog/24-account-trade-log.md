@@ -14,9 +14,9 @@ Status: Built (4 Nov 2026), Kite pull needs Mac check · Index: [BACKLOG.md](../
 **On-signal:** same index and view (long CE / short PE = CALL), entered while a live oscout signal was open (late fills excluded).
 
 **Page (/account, admin only, API too)**
-- Totals; 10 cards: stop after N trades/day, re-click within 5 min, gave it back, charges, off-signal ₹ vs system, tilt clock, after 2 losses, scalp tax (<2m), order churn, best/worst hour.
+- Totals; 12 cards: adds per position (10+), held over 1h, stop after N trades/day, re-click within 5 min, gave it back, charges, off-signal ₹ vs system, tilt clock, after 2 losses, scalp tax (<2m), order churn, best/worst hour.
 - Equity: all trades vs on-signal only.
-- Tables: by trade number, by trades/day, gap since previous entry, re-entry after loss (<5 / 5–15 / 15–30 / 30m+), flags, on vs off signal.
+- Tables: adds per position (0 / 1–3 / 4–9 / 10+ extra entry orders), hold time, by trade number, by trades/day, gap since previous entry, re-entry after loss (<5 / 5–15 / 15–30 / 30m+), flags, on vs off signal.
 - Frequency: trades/day, busiest 15 min, orders/day, cancelled, modified, order gap; day strip; by hour; weekday × hour heatmap.
 - Trade log flags: off-signal, averaged down, CE↔PE flip <10m, re-entry <5m after loss, held <2m. Filters: index, date range.
 

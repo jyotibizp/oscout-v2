@@ -105,7 +105,7 @@ export interface AcctDay { day: string; trades: number; net: number; peak: numbe
 export interface AcctStats {
   totals: AcctAgg & { open: number; days: number; green_days: number; first: string | null; last: string | null };
   stop_after: { n: number; net: number; vs_actual: number }[];
-  gap_prev: AcctBucket[];
+  gap_prev: AcctBucket[]; adds: AcctBucket[]; hold: AcctBucket[];
   gave_back: { days: number; total: number; green_to_red: number; of_days: number };
   charges: { gross: number; charges: number; net: number; brokerage: number; stt: number; pct_of_gross: number | null; per_trade: number | null };
   system: { signals: number; net_r: number; win_rate: number | null; taken: number; on_signal: AcctAgg; off_signal: AcctAgg };

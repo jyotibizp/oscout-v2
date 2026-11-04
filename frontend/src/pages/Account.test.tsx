@@ -10,6 +10,7 @@ const agg = { trades: 0, wins: 0, win_rate: null, net: 0, avg: null, avg_win: nu
 const stats = {
   totals: { ...agg, trades: 3, wins: 1, net: -900, open: 0, days: 1, green_days: 0, first: "2026-10-06", last: "2026-10-06" },
   stop_after: [{ n: 1, net: 1400, vs_actual: 2300 }, { n: 2, net: 600, vs_actual: 1500 }],
+  adds: [{ ...agg, bucket: "10+", trades: 2, wins: 0, net: -5000 }], hold: [],
   gap_prev: [{ ...agg, bucket: "<1m", trades: 2, net: -1500 }], gave_back: { days: 1, total: 2300, green_to_red: 1, of_days: 1 },
   charges: { gross: -700, charges: 200, net: -900, brokerage: 120, stt: 30, pct_of_gross: null, per_trade: 66 },
   system: { signals: 1, net_r: 0.5, win_rate: 100, taken: 1, on_signal: { ...agg, trades: 1, net: 1400 }, off_signal: { ...agg, trades: 2, net: -2300 } },
@@ -33,6 +34,8 @@ test("admin sees the hard-truth cards", async () => {
   render(<Account />);
   expect(await screen.findByText("If you'd stopped after N trades a day")).toBeInTheDocument();
   expect(screen.getByText("Your extra (off-signal) trades")).toBeInTheDocument();
+  expect(screen.getByText("Adds per position (10+ adds)")).toBeInTheDocument();
+  expect(screen.getByText("Held over 1 hour")).toBeInTheDocument();
   expect(screen.getAllByText("−₹2,300").length).toBeGreaterThan(0);
 });
 

@@ -39,8 +39,19 @@ function wowCards(s: AcctStats): ReactNode[] {
   s.heatmap.forEach((h) => hours.set(h.hour, (hours.get(h.hour) ?? 0) + h.net));
   const hs = [...hours.entries()].sort((a, b) => b[1] - a[1]);
   const worst = hs[hs.length - 1];
+  const sumB = (bs: AcctBucket[], keys: string[]) => bs.filter((b) => keys.includes(b.bucket))
+    .reduce((a, b) => ({ trades: a.trades + b.trades, wins: a.wins + b.wins, net: a.net + b.net }), { trades: 0, wins: 0, net: 0 });
+  const wr = (a: { trades: number; wins: number }) => (a.trades ? `${Math.round((100 * a.wins) / a.trades)}%` : "—");
+  const manyAdds = sumB(s.adds, ["10+"]), fewAdds = sumB(s.adds, ["0", "1-3"]);
+  const longHold = sumB(s.hold, ["1h+ same day", "overnight"]), quick = sumB(s.hold, ["5-15m"]);
   const o = s.orders;
   return [
+    <Wow key="adds" title="Adds per position (10+ adds)" tone={tone(manyAdds.net)}
+      big={manyAdds.trades ? inr(manyAdds.net) : "—"}
+      line={<>{manyAdds.trades} positions built with 10+ extra entry orders, win {wr(manyAdds)}. With 0–3 adds: {fewAdds.trades} positions {inr(fewAdds.net)}, win {wr(fewAdds)}.</>} />,
+    <Wow key="hold" title="Held over 1 hour" tone={tone(longHold.net)}
+      big={longHold.trades ? inr(longHold.net) : "—"}
+      line={<>{longHold.trades} positions held 1h+ (incl. overnight), win {wr(longHold)}. Closed in 5–15 min: {quick.trades} positions {inr(quick.net)}, win {wr(quick)}.</>} />,
     <Wow key="stop" title="If you'd stopped after N trades a day" tone={tone(best?.vs_actual)}
       big={best ? `${inr(best.vs_actual)}` : "—"}
       line={best ? <>Stopping after <b>{best.n}</b> trade{best.n > 1 ? "s" : ""} vs your actual {inr(t.net)}. {s.stop_after.map((x) => `${x.n}: ${inr(x.net)}`).join(" · ")}</> : "No closed trades yet"} />,
@@ -235,7 +246,7 @@ export default function Account() {
           </div>
 
           <Section title="The hard truths">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">{wowCards(d)}</div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{wowCards(d)}</div>
           </Section>
 
           <Section title="Equity: you vs on-signal trades only">
@@ -248,6 +259,8 @@ export default function Account() {
 
           <Section title="What overtrading costs">
             <div className="grid gap-4 lg:grid-cols-2">
+              <BucketTable title="Adds per position (extra entry orders)" rows={d.adds} />
+              <BucketTable title="How long you held" rows={d.hold} />
               <BucketTable title="By trade number in the day" rows={d.by_trade_number} />
               <div className="card overflow-x-auto">
                 <div className="px-4 pt-3 text-xs uppercase tracking-widest text-ink-faint">By trades per day</div>

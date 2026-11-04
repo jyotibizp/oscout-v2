@@ -57,10 +57,15 @@ class RoundTrip:
     buy_value: float = 0.0
     sell_value: float = 0.0
     fills: int = 0
-    adds: int = 0
+    entry_orders: set = field(default_factory=set)   # orders that opened or added to the position
     avg_down: bool = False
     orders: set = field(default_factory=set)
     taxes: dict = field(default_factory=lambda: {"stt": 0.0, "txn": 0.0, "sebi": 0.0, "stamp": 0.0})
+
+    @property
+    def adds(self) -> int:
+        """Extra entry orders after the first (not fills: one order often fills in several parts)."""
+        return max(len(self.entry_orders) - 1, 0)
 
     @property
     def closed(self) -> bool:
@@ -97,8 +102,9 @@ def build_round_trips(fills: list[AccountTrade]) -> list[RoundTrip]:
             same = (rt.pos >= 0) == (q > 0) if rt.pos else True
             take = q if same else (q if abs(q) <= abs(rt.pos) else -rt.pos)
             share = abs(take) / f.quantity
+            if same:
+                rt.entry_orders.add(f.order_id or f"t{f.trade_id}")  # one order filled in parts = one add
             if same and rt.pos:  # adding to an open position
-                rt.adds += 1
                 avg = _avg_entry(rt)
                 if (rt.side == "LONG" and f.price < avg) or (rt.side == "SHORT" and f.price > avg):
                     rt.avg_down = True
@@ -183,7 +189,7 @@ def round_trips(db: Session, lo: datetime | None = None, hi: datetime | None = N
             "signal_id": s.setup_id if s else None, "on_signal": s is not None,
             "signal_delay_min": round((r.entry_ts - s.entry_ts).total_seconds() / 60, 1) if s else None,
             "gap_prev_min": round((r.entry_ts - datetime.fromisoformat(prev["entry_ts"])).total_seconds() / 60, 1) if prev else None,
-            "_entry": r.entry_ts, "_exit": r.exit_ts if r.closed else None,
+            "exit_day": _day(r.exit_ts).isoformat() if r.closed else None, "_entry": r.entry_ts, "_exit": r.exit_ts if r.closed else None,
         }
         # re-entry after the previous round trip of the day closed: gap from that exit, and whether it lost
         done = [o for o in day_rows[row["day"]] if o["_exit"] and o["_exit"] <= r.entry_ts]
@@ -307,6 +313,10 @@ def stats(db: Session, lo: datetime | None = None, hi: datetime | None = None, s
     after_two = {"next": _agg(nxt), "overall_win_rate": _agg(rows)["win_rate"]}
 
     # 8. scalp tax
+    adds = _bucket(rows, lambda r: "0" if r["adds"] == 0 else "1-3" if r["adds"] <= 3 else "4-9" if r["adds"] <= 9 else "10+",
+                   ["0", "1-3", "4-9", "10+"])
+    hold = _bucket(rows, lambda r: "<5m" if r["hold_min"] < 5 else "5-15m" if r["hold_min"] < 15 else "15-60m" if r["hold_min"] < 60
+                   else "1h+ same day" if r["day"] == r["exit_day"] else "overnight", ["<5m", "5-15m", "15-60m", "1h+ same day", "overnight"])
     scalp = _bucket(rows, lambda r: f"<{SCALP_MINUTES}m" if r["hold_min"] < SCALP_MINUTES else f"{SCALP_MINUTES}m+",
                     [f"<{SCALP_MINUTES}m", f"{SCALP_MINUTES}m+"])
 
@@ -368,7 +378,7 @@ def stats(db: Session, lo: datetime | None = None, hi: datetime | None = None, s
         "totals": {**_agg(rows), "open": sum(1 for r in allrows if r["status"] == "OPEN"), "days": len(day_rows),
                    "green_days": sum(1 for d in day_rows if d["net"] > 0),
                    "first": rows[0]["day"] if rows else None, "last": rows[-1]["day"] if rows else None},
-        "stop_after": stop_after, "gap_prev": gap,
+        "stop_after": stop_after, "gap_prev": gap, "adds": adds, "hold": hold,
         "gave_back": {"days": gave_days, "total": round(gave_total, 2), "green_to_red": green_to_red, "of_days": len(day_rows)},
         "charges": ch, "system": system, "tilt": tilt, "after_two_losses": after_two, "scalp": scalp, "heatmap": heatmap,
         "by_trade_number": by_seq, "by_day_count": by_day_count, "reentry_after_loss": reentry, "reentry_after_win": reentry_win,
