@@ -32,6 +32,14 @@ def test_csv_import_dedupes_and_skips_equity(db):
     assert t.fill_ts == ist(2026, 10, 6, 9, 20) and t.underlying == "NIFTY" and t.instrument == "CE"
 
 
+def test_csv_console_exchange_names(db):
+    """Real Console export: exchange NSE/BSE with segment FO, fractional quantities."""
+    csv = HEAD + "SENSEX26O0172000CE,,2026-10-01,BSE,FO,,buy,false,40.000000,366.700000,1620590,17908,2026-10-01T09:23:40,2026-10-01\n" \
+        + "NIFTY26N0323050PE,,2026-10-01,NSE,FO,,sell,false,75.000000,100.0,99,18,2026-10-01T09:30:00,2026-11-03\n"
+    assert ingest.import_csv(db, csv)["added"] == 2
+    assert {t.exchange for t in db.query(AccountTrade)} == {"BFO", "NFO"}
+
+
 def test_csv_rejects_other_files(db):
     import pytest
     with pytest.raises(ValueError):

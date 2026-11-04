@@ -15,6 +15,7 @@ from app.db.models import AccountOrder, AccountTrade
 log = logging.getLogger(__name__)
 
 DERIV_EXCHANGES = {"NFO", "BFO"}
+CONSOLE_FO = {"NSE": "NFO", "BSE": "BFO"}  # Console tradebook: exchange NSE/BSE + segment FO
 _SYM = re.compile(r"^([A-Z0-9&\-]+?)(\d{2})([1-9OND]\d{2}|[A-Z]{3})(\d+(?:\.\d+)?)?(CE|PE|FUT)$")
 
 last_sync: dict = {"at": None, "trades_added": 0, "orders": 0, "error": None}
@@ -76,7 +77,10 @@ def import_csv(db: Session, text: str) -> dict:
         r = {norm[k]: v for k, v in raw.items() if k in norm}
         try:
             ts = r.get("order_execution_time") or r.get("trade_date")
-            ok = _add_fill(db, seen, {"exchange": r["exchange"], "trade_id": r["trade_id"], "order_id": r.get("order_id"),
+            ex = str(r["exchange"]).strip().upper()
+            if str(r.get("segment") or "").strip().upper() == "FO":
+                ex = CONSOLE_FO.get(ex, ex)
+            ok = _add_fill(db, seen, {"exchange": ex, "trade_id": r["trade_id"], "order_id": r.get("order_id"),
                                       "tradingsymbol": r.get("symbol") or r.get("tradingsymbol"), "side": r["trade_type"],
                                       "quantity": r["quantity"], "price": r["price"], "ts": ts}, "CSV")
             added += ok
