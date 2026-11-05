@@ -58,10 +58,11 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
 export function Header({ health, reload }: { health: Health | null; reload: () => void }) {
   const { autoRefresh, setAutoRefresh, bump } = useRefresh();
   const [scanning, setScanning] = useState(false);
-  const signals = useApi(api.activeSignals, [], 15000);
-  const { muted, setMuted } = useSignalChime(
+  const signals = useApi(api.activeSignals, [], 15000, true);  // chime polls even with Auto Refresh off
+  const { muted, setMuted, blocked } = useSignalChime(
     signals.data?.active.filter((s) => !s.testing && !s.late).map((s) => s.id),  // Testing indexes (#19) and late fills (#2) don't chime
-    signals.data?.exited_today.filter((s) => !s.testing && !s.late).map((s) => s.id));
+    signals.data?.exited_today.filter((s) => !s.testing && !s.late).map((s) => s.id),
+    signals.data?.rejected_today?.filter((s) => !s.testing && !s.late).map((s) => s.id));
   const [msg, setMsg] = useState<string | null>(null);
   const admin = useRole() === "admin";
 
@@ -118,6 +119,9 @@ export function Header({ health, reload }: { health: Health | null; reload: () =
             onChange={async (v) => { await api.setAutoScan(v); reload(); }} />}
           <Toggle on={autoRefresh} label="Auto Refresh" onChange={setAutoRefresh} />
           <Toggle on={!muted} label="Sound" onChange={(v) => setMuted(!v)} />
+          {blocked && <span className="rounded border border-warn/60 px-2 py-1 text-xs text-warn animate-pulse"
+            title="Browsers block sound until you click the page after it loads (also after CONNECT). Click anywhere once.">
+            Click page to enable sound</span>}
           {!admin ? (
             <span className="rounded border border-line px-2 py-1 text-xs text-ink-soft" title="Shared read-only view">View only</span>
           ) : health?.connected ? (

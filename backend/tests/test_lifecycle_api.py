@@ -127,3 +127,15 @@ def test_v101_style_config_moves_to_atr_warning_as_a_new_version(db):
     assert row.version == "1.0.2" and cfg.atr.mode == "warning"
     assert (cfg.fifteen_min.min_adx_slope, cfg.fifteen_min.min_di_consistency, cfg.fifteen_min.max_adx) == (-1.0, 0.3, 60.0)
     assert cfg.five_min.compression_peak_pct == 50.0
+
+
+def test_active_lists_todays_rejected_setups(db):
+    from app.core.clock import now_utc
+    row, _ = store.get_active(db)
+    mk = lambda ts, state: SignalSetup(symbol="NIFTY", direction="CALL", state=state, breakout_ts=ts, detected_at=ts,
+                                       config_id=row.id, config_version=row.version, breakout={}, closed_reason="ATR EXHAUSTED")
+    today, old = mk(now_utc(), "REJECTED"), mk(now_utc() - timedelta(days=3), "REJECTED")
+    db.add_all([today, old, mk(now_utc(), "EXPIRED")])
+    db.commit()
+    rej = client_at("127.0.0.1").get("/api/signals/active").json()["rejected_today"]
+    assert [s["id"] for s in rej] == [today.id] and rej[0]["closed_reason"] == "ATR EXHAUSTED"

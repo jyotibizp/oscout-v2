@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 /** Fetch + optional polling. `deps` change -> refetch. */
-export function useApi<T>(fn: () => Promise<T>, deps: unknown[] = [], pollMs?: number) {
+/** `alwaysPoll`: keep polling when Auto Refresh is off (the signal chime must not depend on it). */
+export function useApi<T>(fn: () => Promise<T>, deps: unknown[] = [], pollMs?: number, alwaysPoll = false) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,10 +29,10 @@ export function useApi<T>(fn: () => Promise<T>, deps: unknown[] = [], pollMs?: n
   }, [...deps, tick]);
 
   useEffect(() => {
-    if (!pollMs || !autoRefresh) return;
+    if (!pollMs || !(autoRefresh || alwaysPoll)) return;
     const id = setInterval(load, pollMs);
     return () => clearInterval(id);
-  }, [pollMs, autoRefresh, load]);
+  }, [pollMs, autoRefresh, alwaysPoll, load]);
 
   return { data, error, loading, reload: load, setData };
 }

@@ -232,8 +232,12 @@ def signals_active(db: Session = Depends(get_db)):
     day_start = as_utc(datetime.combine(to_ist(now_utc()).date(), time(0), tzinfo=IST))
     exited = db.scalars(select(SignalSetup).where(SignalSetup.state == "EXIT_TRIGGERED", SignalSetup.exit_ts >= day_start)
                         .order_by(SignalSetup.exit_ts.desc())).all()
+    # today's breakouts the filters rejected (ATR, VIX, entry window, signal already open): the UI plays a short sound
+    rejected = db.scalars(select(SignalSetup).where(SignalSetup.state == "REJECTED", SignalSetup.breakout_ts >= day_start)
+                          .order_by(SignalSetup.id.desc())).all()
     return {"active": active, "pending": [_setup_full(db, s, late) for s in pending],
-            "exited_today": [ser.setup(s, None, db.scalar(select(Trade).where(Trade.setup_id == s.id)), s.id in late) for s in exited]}
+            "exited_today": [ser.setup(s, None, db.scalar(select(Trade).where(Trade.setup_id == s.id)), s.id in late) for s in exited],
+            "rejected_today": [ser.setup(s, None, None, s.id in late) for s in rejected]}
 
 
 @router.get("/signals/history")
