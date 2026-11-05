@@ -100,7 +100,7 @@ def replay(symbol: str, rows: list[dict], vix_daily: dict, cfg: StrategyConfig, 
         used.add(res.breakout["ts"])
         dr = 1 if res.direction == "CALL" else -1
         risk = abs(res.entry_price - res.stop_price) if res.stop_price else (res.atr_value or 0)
-        sig = {"symbol": symbol, "dir": res.direction, "ts": bar.ts.isoformat(), "entry": res.entry_price, "risk": risk,
+        sig = {"symbol": symbol, "dir": res.direction, "ts": bar.ts.isoformat(), "breakout_ts": res.breakout["ts"], "entry": res.entry_price, "risk": risk,
                "adx5": res.snapshot.get("adx5"), "adx15": res.snapshot.get("adx15"), "atr_status": res.snapshot.get("atr_status")}
         pos = Position(dr, res.entry_price, res.stop_price, res.target_price, res.snapshot.get("adx5") or 0,
                        res.snapshot.get("adx5") or 0)
