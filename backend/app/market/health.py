@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.clock import is_market_open, latest_completed_start
+from app.core.clock import is_market_open, latest_completed_start, session_open, to_ist
 from app.db.models import MarketCandle
 from app.market.symbols import TRADABLE, VIX
 
@@ -21,6 +21,9 @@ def feed_status(db: Session, symbol: str, tf: str, now: datetime, max_age_minute
         status, reason = "MISSING", f"No {tf} candles stored"
     elif open_ and last < expected - timedelta(minutes=max_age_minutes if tf == "5m" else max_age_minutes + 15):
         status, reason = "STALE", f"Latest {tf} candle {last.isoformat()} is behind the expected {expected.isoformat()}"
+    elif not open_ and last < latest_completed_start(session_open(to_ist(expected).date()), tf):
+        # Market closed: allow one missed session (a holiday), flag anything older.
+        status, reason = "STALE", f"Latest {tf} candle {last.isoformat()} is more than one session behind {expected.isoformat()}"
     else:
         status, reason = "HEALTHY", None
     sync = LAST_SYNC.get(symbol, {})
