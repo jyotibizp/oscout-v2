@@ -14,7 +14,7 @@ Status: Groomed (2 Nov 2026), ready, next to build · Index: [BACKLOG.md](../../
 **Out of scope:** placing orders, position sizing (#5), multi-leg.
 
 **Agreed (2 Nov 2026)**
-1. Expiry: current weekly; on expiry day roll to the next weekly (BANKNIFTY: monthly).
+1. Expiry (changed 18 Nov 2026): NIFTY/SENSEX option = the weekly with 2–4 trading days to expiry (expiry day counts, today doesn't); both fit → nearer expiry. Today: Mon–Tue SENSEX, Wed–Fri NIFTY, whichever index signalled (see #25). BANKNIFTY: monthly. Test: project files backtests/2026-11-18-expiry-choice/README.md — 2025 +0.043R, 2026 +0.106R option R.
 2. Premium stop / target: Black-Scholes re-price at the index stop / target (entry IV, time left). Recorded exit = real premium when the index exit fires.
 3. Exits stay on the index (stop / target / ADX exit); premium levels don't trigger exits.
 4. Costs per trade in premium points: NIFTY 1, SENSEX 3, BANKNIFTY 2 (one figure per trade, simple for now).
@@ -26,7 +26,7 @@ Status: Groomed (2 Nov 2026), ready, next to build · Index: [BACKLOG.md](../../
 - Live entry: real-time AUTO/MANUAL scan → chain (#15 build) strike nearest 0.70 delta, LTP. Needs `option_chain(..., min_expiry)` for the expiry-day roll.
 - Live exit: chain LTP for that strike / expiry at the exit scan; else modelled.
 - One sync step at the end of each scan: open legs for signals without one, close legs of exited signals. Never fails a scan. Covers live, late, replayed and history.
-- Modelled expiry rule: NIFTY Tue, SENSEX Thu weekly, BANKNIFTY last Tue monthly (holiday shifts ignored).
+- Modelled expiry rule: NIFTY Tue, SENSEX Thu weekly, BANKNIFTY last Tue monthly (holiday shifts ignored). Trading days = weekdays for now.
 - UI: card + Signal History show option, strike, Δ, premium E / SL / T; Trades: option P&L and R; Performance: Option R stats beside index R.
 
 **Acceptance**
